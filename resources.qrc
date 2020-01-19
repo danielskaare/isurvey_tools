@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/plugins/isurvey_tools" >
+        <file>icon.png</file>
+        <file>icon_rln.png</file>
+        <file>icon_etr.png</file>
+    </qresource>
+</RCC>
