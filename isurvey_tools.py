@@ -270,94 +270,94 @@ class iSurveyTools:
             QMessageBox.critical(self.iface.mainWindow(),
                                  'Select Masterfile ',
                                  "You have not selected a valid Masterfile Database, please do so.\nExiting...")
-            return
-        with conn:
-            try:
-                cur = conn.cursor()
-                cur.execute('SELECT count(*) FROM rpl')
-                res = cur.fetchall()
-                if (res[0][0]==0):
-                    self.dlg.cB_runline.setStyleSheet("color: red")
-                    self.dlg.cB_runline.setChecked(False)
-                else:
-                    self.dlg.cB_runline.setStyleSheet("color: green")
-                    self.dlg.cB_runline.setChecked(True)
+        else:
+            with conn:
+                try:
+                    cur = conn.cursor()
+                    cur.execute('SELECT count(*) FROM rpl')
+                    res = cur.fetchall()
+                    if (res[0][0]==0):
+                        self.dlg.cB_runline.setStyleSheet("color: red")
+                        self.dlg.cB_runline.setChecked(False)
+                    else:
+                        self.dlg.cB_runline.setStyleSheet("color: green")
+                        self.dlg.cB_runline.setChecked(True)
 
-                cur.execute('SELECT count(*) FROM as_laid')
-                res = cur.fetchall()
-                if (res[0][0] == 0):
-                    self.dlg.cB_aslaid.setStyleSheet("color: red")
-                    self.dlg.cB_aslaid.setChecked(False)
-                else:
-                    self.dlg.cB_aslaid.setStyleSheet("color: green")
-                    self.dlg.cB_aslaid.setChecked(True)
+                    cur.execute('SELECT count(*) FROM as_laid')
+                    res = cur.fetchall()
+                    if (res[0][0] == 0):
+                        self.dlg.cB_aslaid.setStyleSheet("color: red")
+                        self.dlg.cB_aslaid.setChecked(False)
+                    else:
+                        self.dlg.cB_aslaid.setStyleSheet("color: green")
+                        self.dlg.cB_aslaid.setChecked(True)
 
-                cur.execute('SELECT count(*) FROM trenching')
-                res = cur.fetchall()
-                if (res[0][0] == 0):
-                    self.dlg.cB_capjet.setStyleSheet("color: red")
-                    self.dlg.cB_capjet.setChecked(False)
-                else:
-                    self.dlg.cB_capjet.setStyleSheet("color: green")
-                    self.dlg.cB_capjet.setChecked(True)
+                    cur.execute('SELECT count(*) FROM trenching')
+                    res = cur.fetchall()
+                    if (res[0][0] == 0):
+                        self.dlg.cB_capjet.setStyleSheet("color: red")
+                        self.dlg.cB_capjet.setChecked(False)
+                    else:
+                        self.dlg.cB_capjet.setStyleSheet("color: green")
+                        self.dlg.cB_capjet.setChecked(True)
 
-                cur.execute('SELECT count(*) FROM as_trenched')
-                res = cur.fetchall()
-                if (res[0][0] == 0):
-                    self.dlg.cB_astrenched.setStyleSheet("color: red")
-                    self.dlg.cB_astrenched.setChecked(False)
-                else:
-                    self.dlg.cB_astrenched.setStyleSheet("color: green")
-                    self.dlg.cB_astrenched.setChecked(True)
+                    cur.execute('SELECT count(*) FROM as_trenched')
+                    res = cur.fetchall()
+                    if (res[0][0] == 0):
+                        self.dlg.cB_astrenched.setStyleSheet("color: red")
+                        self.dlg.cB_astrenched.setChecked(False)
+                    else:
+                        self.dlg.cB_astrenched.setStyleSheet("color: green")
+                        self.dlg.cB_astrenched.setChecked(True)
 
-                cur.execute('SELECT count(*) FROM events')
-                res = cur.fetchall()
-                if (res[0][0] == 0):
-                    self.dlg.cB_events.setStyleSheet("color: red")
-                    self.dlg.cB_events.setChecked(False)
-                else:
-                    self.dlg.cB_events.setStyleSheet("color: green")
-                    self.dlg.cB_events.setChecked(True)
-            except sqlite3.IntegrityError:
-                print("Operation Types are already in this database")
-            except sqlite3.DatabaseError:
-                print("Probable some of the tables or columns has the wrong name:" + str(sys.exc_info()[0]))
-            except:
-                print("Unexpected error Trying to initializeDB:" + str(sys.exc_info()[0]))
+                    cur.execute('SELECT count(*) FROM events')
+                    res = cur.fetchall()
+                    if (res[0][0] == 0):
+                        self.dlg.cB_events.setStyleSheet("color: red")
+                        self.dlg.cB_events.setChecked(False)
+                    else:
+                        self.dlg.cB_events.setStyleSheet("color: green")
+                        self.dlg.cB_events.setChecked(True)
+                except sqlite3.IntegrityError:
+                    print("Operation Types are already in this database")
+                except sqlite3.DatabaseError:
+                    print("Probable some of the tables or columns has the wrong name:" + str(sys.exc_info()[0]))
+                except:
+                    print("Unexpected error Trying to initializeDB:" + str(sys.exc_info()[0]))
 
     def populate_tid_and_sid_list(self):
         conn = self.initDBConnection()
         if conn is None:
             QMessageBox.critical(self.iface.mainWindow(),
                                  'Select Masterfile ',
-                                 "You have not selected a valid Masterfile Database, please do so.\nExiting...")
-            return
-        with conn:
-            try:
-                cur = conn.cursor()
-                cur.execute('SELECT DISTINCT sid_id FROM as_trenched ORDER BY sid_id ASC;')
-                sid_tuples = cur.fetchall()
-                #print(sid_tuples)
-                cur.execute('SELECT DISTINCT trenching_id FROM trenching ORDER BY trenching_id ASC;')
-                tid_tuples = cur.fetchall()
-                #print(tid_tuples)
-                self.dlg.comboBox_TID.clear()
-                self.dlg.comboBox_SID.clear()
-                print("here1")
-                for tid_element in tid_tuples:
-                    print(tid_element[0])
-                    self.dlg.comboBox_TID.addItem(str(tid_element[0]))
-                print("TID OK")
-                for sid_element in sid_tuples:
-                    print(sid_element[0])
-                    self.dlg.comboBox_SID.addItem(str(sid_element[0]))
-                print("SID OK")
-            except sqlite3.IntegrityError:
-                print("Operation Types are already in this database")
-            except sqlite3.DatabaseError:
-                print("Probable some of the tables or columns has the wrong name:" + str(sys.exc_info()[0]))
-            except:
-                print("Unexpected error Trying to SELECT DISTINCT sid_id and tid_id:" + str(sys.exc_info()[0]))
+                                 "You have not selected a valid Masterfile Database, please do so...\nExiting...")
+        else:
+            with conn:
+                try:
+                    cur = conn.cursor()
+                    cur.execute('SELECT DISTINCT sid_id FROM as_trenched ORDER BY sid_id ASC;')
+                    sid_tuples = cur.fetchall()
+                    #print(sid_tuples)
+                    cur.execute('SELECT DISTINCT trenching_id FROM trenching ORDER BY trenching_id ASC;')
+                    tid_tuples = cur.fetchall()
+                    #print(tid_tuples)
+                    self.dlg.comboBox_TID.clear()
+                    self.dlg.comboBox_SID.clear()
+                    print("here1")
+                    for tid_element in tid_tuples:
+                        print(tid_element[0])
+                        self.dlg.comboBox_TID.addItem(str(tid_element[0]))
+                    print("TID OK")
+                    for sid_element in sid_tuples:
+                        print(sid_element[0])
+                        self.dlg.comboBox_SID.addItem(str(sid_element[0]))
+                    print("SID OK")
+                except sqlite3.IntegrityError:
+                    print("Operation Types are already in this database")
+                except sqlite3.DatabaseError:
+                    print("Probable some of the tables or columns has the wrong name:" + str(sys.exc_info()[0]))
+                except:
+                    print("Unexpected error Trying to SELECT DISTINCT sid_id and tid_id:" + str(sys.exc_info()[0]))
 
 
     def run_importRunline(self):
