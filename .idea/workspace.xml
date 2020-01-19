@@ -2,7 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="71041ddf-e759-4072-a0e3-c518f4cf9993" name="Default" comment="">
-      <change beforePath="" afterPath="$PROJECT_DIR$/.idea/vcs.xml" />
       <change beforePath="$PROJECT_DIR$/isurvey_tools.py" afterPath="$PROJECT_DIR$/isurvey_tools.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -18,7 +17,7 @@
         <entry file="file://$PROJECT_DIR$/isurvey_tools.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="313">
-              <caret line="332" column="99" lean-forward="false" selection-start-line="332" selection-start-column="99" selection-end-line="332" selection-end-column="99" />
+              <caret line="332" column="97" lean-forward="false" selection-start-line="332" selection-start-column="97" selection-end-line="332" selection-end-column="97" />
               <folding>
                 <element signature="e#9830#12871#0" expanded="false" />
               </folding>
@@ -147,7 +146,7 @@
     <entry file="file://$PROJECT_DIR$/isurvey_tools.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="313">
-          <caret line="332" column="99" lean-forward="false" selection-start-line="332" selection-start-column="99" selection-end-line="332" selection-end-column="99" />
+          <caret line="332" column="97" lean-forward="false" selection-start-line="332" selection-start-column="97" selection-end-line="332" selection-end-column="97" />
           <folding>
             <element signature="e#9830#12871#0" expanded="false" />
           </folding>

@@ -330,7 +330,7 @@ class iSurveyTools:
         if conn is None:
             QMessageBox.critical(self.iface.mainWindow(),
                                  'Select Masterfile ',
-                                 "You have not selected a valid Masterfile Database, please do so...\nExiting...")
+                                 "You have not selected a valid Masterfile Database, please do so.\nExiting...")
         else:
             with conn:
                 try:
