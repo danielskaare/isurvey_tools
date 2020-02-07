@@ -456,7 +456,7 @@ class iSurveyTools:
             conn = self.initDBConnection()
             if self.dlg.cB_runline.isChecked():
                 print("Start Importing Runline")
-                sql_query_rpl = 'SELECT kp, easting, northing, kp_depth, version FROM rpl;'
+                sql_query_rpl = 'SELECT * FROM rpl;'
                 df_rpl = pd.read_sql(sql_query_rpl, conn)
                 if df_rpl.empty:
                     QMessageBox.critical(self.iface.mainWindow(),
@@ -484,7 +484,7 @@ class iSurveyTools:
 
             if self.dlg.cB_aslaid.isChecked():
                 print("Start Importing As-Laid")
-                sql_query_as_laid = 'SELECT kp, easting, northing, depth, rpl_id FROM as_laid;'
+                sql_query_as_laid = 'SELECT * FROM as_laid;'
                 df_as_laid = pd.read_sql(sql_query_as_laid, conn)
                 if df_as_laid.empty:
                     QMessageBox.critical(self.iface.mainWindow(),
@@ -511,7 +511,7 @@ class iSurveyTools:
 
             if self.dlg.cB_capjet.isChecked():
                 print("Start Capjet Track")
-                sql_query_capjet_track = 'SELECT kp, easting, northing, sword_depth, rpl_id FROM trenching;'
+                sql_query_capjet_track = 'SELECT * FROM trenching;'
                 df_capjet_track = pd.read_sql(sql_query_capjet_track, conn)
                 if df_capjet_track.empty:
                     QMessageBox.critical(self.iface.mainWindow(),
@@ -538,7 +538,7 @@ class iSurveyTools:
 
             if self.dlg.cB_astrenched.isChecked():
                 print("Start Importing As-Trenched")
-                sql_query_as_trenched = 'SELECT kp, easting, northing, depth_pipe, rpl_id FROM as_trenched;'
+                sql_query_as_trenched = 'SELECT * FROM as_trenched;'
                 df_as_trenched = pd.read_sql(sql_query_as_trenched, conn)
                 if  df_as_trenched.empty:
                     QMessageBox.critical(self.iface.mainWindow(),
@@ -565,7 +565,7 @@ class iSurveyTools:
 
             if self.dlg.cB_events.isChecked():
                 print("Start Importing Events")
-                sql_query_events = 'SELECT kp, easting, northing, depth FROM events;'
+                sql_query_events = 'SELECT * FROM events;'
                 df_events = pd.read_sql(sql_query_events, conn)
                 if df_events.empty:
                     QMessageBox.critical(self.iface.mainWindow(),
@@ -595,7 +595,7 @@ class iSurveyTools:
                 print(self.dlg.comboBox_TID.currentText())
                 tid_nr = float(str(self.dlg.comboBox_TID.currentText()))
                 print(tid_nr)
-                sql_query_capjet_track = 'SELECT kp, easting, northing, sword_depth, rpl_id FROM trenching WHERE trenching_id =' + str(tid_nr) + ';'
+                sql_query_capjet_track = 'SELECT * FROM trenching WHERE trenching_id =' + str(tid_nr) + ';'
                 df_capjet_track = pd.read_sql(sql_query_capjet_track, conn)
                 if df_capjet_track.empty:
                     QMessageBox.critical(self.iface.mainWindow(),
@@ -626,7 +626,7 @@ class iSurveyTools:
                 print(self.dlg.comboBox_SID.currentText())
                 sid_nr = float(str(self.dlg.comboBox_SID.currentText()))
                 print(sid_nr)
-                sql_query_as_trenched = 'SELECT kp, easting, northing, depth_pipe, rpl_id FROM as_trenched WHERE sid_id=' + str(sid_nr) + ';'
+                sql_query_as_trenched = 'SELECT * FROM as_trenched WHERE sid_id=' + str(sid_nr) + ';'
                 df_as_trenched = pd.read_sql(sql_query_as_trenched, conn)
                 if df_as_trenched.empty:
                     QMessageBox.critical(self.iface.mainWindow(),
