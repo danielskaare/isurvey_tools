@@ -32,10 +32,10 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'isurvey_tools_dialog_base.ui'))
 
 FORM_CLASS1, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'load_runline_dialog_box.ui'))
+    os.path.dirname(__file__), 'load_eiva_dialog_box.ui'))
 
-FORM_CLASS2, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'load_etr_track_dialog_box.ui'))
+# FORM_CLASS2, _ = uic.loadUiType(os.path.join(
+#     os.path.dirname(__file__), 'load_etr_track_dialog_box.ui'))
 
 
 
@@ -51,10 +51,10 @@ class iSurveyToolsDialog(QtWidgets.QDialog, FORM_CLASS):
         self.setupUi(self)
 
 
-class loadRunlineDialog(QtWidgets.QDialog, FORM_CLASS1):
+class loadEivaDialog(QtWidgets.QDialog, FORM_CLASS1):
     def __init__(self, parent=None):
         """Constructor."""
-        super(loadRunlineDialog, self).__init__(parent)
+        super(loadEivaDialog, self).__init__(parent)
         # Set up the user interface from Designer through FORM_CLASS.
         # After self.setupUi() you can access any designer object by doing
         # self.<objectname>, and you can use autoconnect slots - see
@@ -62,13 +62,13 @@ class loadRunlineDialog(QtWidgets.QDialog, FORM_CLASS1):
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
 
-class loadTrackDialog(QtWidgets.QDialog, FORM_CLASS2):
-    def __init__(self, parent=None):
-        """Constructor."""
-        super(loadTrackDialog, self).__init__(parent)
-        # Set up the user interface from Designer through FORM_CLASS.
-        # After self.setupUi() you can access any designer object by doing
-        # self.<objectname>, and you can use autoconnect slots - see
-        # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
-        # #widgets-and-dialogs-with-auto-connect
-        self.setupUi(self)
+# class loadTrackDialog(QtWidgets.QDialog, FORM_CLASS2):
+#     def __init__(self, parent=None):
+#         """Constructor."""
+#         super(loadTrackDialog, self).__init__(parent)
+#         # Set up the user interface from Designer through FORM_CLASS.
+#         # After self.setupUi() you can access any designer object by doing
+#         # self.<objectname>, and you can use autoconnect slots - see
+#         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
+#         # #widgets-and-dialogs-with-auto-connect
+#         self.setupUi(self)
