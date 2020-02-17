@@ -21,17 +21,23 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
+from qgis.utils import iface # 2020-02-09 kele
+
+# Import necessary geometric objects from shapely module
+from shapely.geometry import Point, LineString
 
 import sqlite3, sys
 import pandas as pd
-from qgis.core import QgsVectorLayer, QgsVectorFileWriter, QgsProject
+from qgis.core import QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling
 from urllib.request import pathname2url
-import os.path
 from os import path
+from pathlib import Path
+from qchainage import chainagetool
 
+import processing   # make it possible to use the processing toolbox functions like "point to path"
 import requests
 
 from PyQt5.QtWidgets import QAction, QMessageBox, QFileDialog
@@ -47,9 +53,8 @@ from PyQt5.QtWidgets import QAction, QMessageBox, QFileDialog
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
-from .isurvey_tools_dialog import iSurveyToolsDialog, loadRunlineDialog, loadTrackDialog
+from .isurvey_tools_dialog import iSurveyToolsDialog, loadEivaDialog
 import os.path
-
 
 class iSurveyTools:
     """QGIS Plugin Implementation."""
@@ -85,8 +90,7 @@ class iSurveyTools:
         # Check if plugin was started the first time in current QGIS session
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
-        self.runline_first_start = None
-        self.track_first_start = None
+        self.eiva_first_start = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -102,7 +106,6 @@ class iSurveyTools:
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('iSurveyTools', message)
-
 
     def add_action(
         self,
@@ -192,23 +195,22 @@ class iSurveyTools:
         icon_path = ':/plugins/isurvey_tools/icon_rln.png'
         self.add_action(
             icon_path,
-            text=self.tr(u'Import Runline'),
-            callback=self.run_importRunline,
+            text=self.tr(u'Import EIVA Feature'),
+            callback=self.run_importEiva,
             parent=self.iface.mainWindow())
 
-        # Create third Icon
-        icon_path = ':/plugins/isurvey_tools/icon_etr.png'
-        self.add_action(
-            icon_path,
-            text=self.tr(u'Import Runline'),
-            callback=self.run_importTrack,
-            parent=self.iface.mainWindow())
+        # # Create third Icon
+        # icon_path = ':/plugins/isurvey_tools/icon_etr.png'
+        # self.add_action(
+        #     icon_path,
+        #     text=self.tr(u'Import E-Track'),
+        #     callback=self.run_importTrack,
+        #     parent=self.iface.mainWindow())
 
         # will be set False in run()
         self.first_start = True
-        self.runline_first_start = True
-        self.track_first_start = True
-
+        self.eiva_first_start = True
+        #self.track_first_start = True
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -225,18 +227,34 @@ class iSurveyTools:
             self.dlg.line_db_path.setText(os.path.abspath(dbFile))
             self.populate_tid_and_sid_list()
 
-    def open_select_runline(self):
-        #File,_ = QFileDialog.getOpenFileName('Open Runline', 'c:\\', "EIVA Runline (*.rln)")
-        #dbFile,_ = QFileDialog.getOpenFileName()
-        File, _ = QFileDialog.getOpenFileName()
+    def open_select_eiva(self):
+        File,_ = QFileDialog.getOpenFileName(self.eiva_dlg, "Open EIVA files", "", "Runlines (*.rln *.rlx);;Track (*.etr);;Waypoints (*.wpt *.wp2);;All Files (*)")
         if File:
-            self.runline_dlg.path_rln_rlx.setText(os.path.abspath(File))
+            self.eiva_dlg.path_eiva_file.setText(os.path.abspath(File))
+            basename = os.path.basename(os.path.abspath(File))
+            # Set filename to Layername in GUI
+            self.eiva_dlg.layer_name.setValue(basename)
 
-    def open_select_etr(self):
-        # dbFile,_ = QFileDialog.getOpenFileName(self, 'Open DB file', 'c:\\', "SQL Lite DB (*.db *.db3)")
-        File,_ = QFileDialog.getOpenFileName()
-        if File:
-            self.track_dlg.path_etr.setText(os.path.abspath(File))
+    # def open_select_etr(self):
+    #     File,_ = QFileDialog.getOpenFileName()
+    #     if File:
+    #         self.track_dlg.path_etr.setText(os.path.abspath(File))
+
+    def handle_QGIS_Project_EPSG(self):
+        if self.dlg.cB_EPSG.isChecked():
+            self.dlg.label_epsg.hide()
+            self.dlg.sB_epsg.hide()
+        elif not self.dlg.cB_EPSG.isChecked():
+            self.dlg.label_epsg.show()
+            self.dlg.sB_epsg.show()
+
+    def handle_QGIS_Project_EPSG_eiva(self):
+        if self.eiva_dlg.cB_EPSG.isChecked():
+            self.eiva_dlg.label_epsg.hide()
+            self.eiva_dlg.sB_epsg.hide()
+        elif not self.eiva_dlg.cB_EPSG.isChecked():
+            self.eiva_dlg.label_epsg.show()
+            self.eiva_dlg.sB_epsg.show()
 
     def initDBConnection(self):
         master_file_path = self.dlg.line_db_path.value()
@@ -343,13 +361,10 @@ class iSurveyTools:
                     #print(tid_tuples)
                     self.dlg.comboBox_TID.clear()
                     self.dlg.comboBox_SID.clear()
-                    print("here1")
                     for tid_element in tid_tuples:
-                        print(tid_element[0])
                         self.dlg.comboBox_TID.addItem(str(tid_element[0]))
                     print("TID OK")
                     for sid_element in sid_tuples:
-                        print(sid_element[0])
                         self.dlg.comboBox_SID.addItem(str(sid_element[0]))
                     print("SID OK")
                 except sqlite3.IntegrityError:
@@ -359,82 +374,376 @@ class iSurveyTools:
                 except:
                     print("Unexpected error Trying to SELECT DISTINCT sid_id and tid_id:" + str(sys.exc_info()[0]))
 
-
-    def run_importRunline(self):
-        print("Running Runline import")
+    def run_importEiva(self):
+        print("Running EIVA import")
         """Run method that performs all the real work"""
 
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if self.runline_first_start == True:
-            self.runline_first_start = False
-            self.runline_dlg = loadRunlineDialog()
+        if self.eiva_first_start:
+            self.eiva_first_start = False
+            self.eiva_dlg = loadEivaDialog()
 
         # show the dialog
-        self.runline_dlg.show()
+        self.eiva_dlg.show()
         # Run the dialog event loop
-        result = self.runline_dlg.exec_()
+        result = self.eiva_dlg.exec_()
 
-        self.runline_dlg.open_folder.clicked.connect(self.open_select_runline)
+        self.eiva_dlg.open_folder.clicked.connect(self.open_select_eiva)
+        self.eiva_dlg.cB_EPSG.clicked.connect(self.handle_QGIS_Project_EPSG_eiva)
+
+        if self.eiva_dlg.cB_EPSG.isChecked():
+            epsg_code = self.iface.mapCanvas().mapSettings().destinationCrs().authid()
+        else:
+            epsg_code = self.eiva_dlg.sB_epsg.value()
+            if epsg_code == 11111:
+                epsg_code = ''
+            else:
+                epsg_code = "EPSG:" + str(epsg_code)
 
         if result:
-            runline_file = self.runline_dlg.path_rln_rlx.value()
+            #Get EIVA file from GUI
+            runline_file = self.eiva_dlg.path_eiva_file.value()
             filename, file_extension = os.path.splitext(runline_file)
+            #basename = os.path.basename(runline_file)
+            #self.runline_dlg.layer_name.setValue(basename)
             if not os.path.exists(runline_file):
                 QMessageBox.critical(self.iface.mainWindow(),
-                                     'Read Runline file',
-                                     "Could not find Runline file. Runline file does not exist?\nExiting...")
+                                     'Read EIVA file',
+                                     "Could not find EIVA file. File does not exist?\nExiting...")
                 return
             if file_extension == '.rln':
                 print("Importing RLN file")
-            elif file_extension == '.rlx':
-                print("Importing RLX file")
+                df_runline = pd.read_csv(runline_file, sep=';', skiprows=2, header=None)
+                df_runline.columns = ['eastings', 'northings']
+                print(df_runline.head())
+                # Point list for the runline
+                PointList = []
+                point_dist = []
+                point_dist_tot = []
+                # Point Layer for Runline
+                #param1 = 'Point?crs=' + str(crsId) + "&field=id:integer&field1=id2:str&field2=text2:str&field3=text3:str&field4=text4:str&text5=id5:str&index=yes"
+                param1 = "Point?crs=%s&field=id:integer&index=yes" % (str(epsg_code))
+                point_layer = self.iface.addVectorLayer(param1, 'Point_' + str(self.eiva_dlg.layer_name.value()), 'memory')
+
+                #fields = point_layer.pendingFields()
+                # Point feature for runline
+                point_feature = QgsFeature()
+
+                pr = point_layer.dataProvider()
+                print(pr.fields().count())
+                point_layer.startEditing()
+                #pr.addAttributes([QgsField("Index", QVariant.Int)])
+                pr.addAttributes([QgsField("Eastings", QVariant.Double)])
+                pr.addAttributes([QgsField("Northings", QVariant.Double)])
+                pr.addAttributes([QgsField("SegmentLength[m]", QVariant.Double)])
+                pr.addAttributes([QgsField("RunlineLength[KP]", QVariant.Double)])
+                point_layer.updateFields()
+                print(pr.fields().count())
+                # point_feature.setAttributes([1])
+
+                for index, row in df_runline.iterrows():
+                    runline_points = QgsPointXY(float(row['eastings']), float(row['northings']))
+
+                    PointList.append(runline_points)
+                    if index == 0:
+                        point_dist.append(0)
+                        point_dist_tot.append(0)
+                    else:
+                        point_dist.append(PointList[index].distance(PointList[index-1]))
+                        point_dist_tot.append(point_dist_tot[index - 1] + PointList[index].distance(PointList[index - 1]))
+
+                    point_feature.setAttributes([index, float(row['eastings']), float(row['northings']), point_dist[index], point_dist_tot[index]/1000])
+                    point_feature.setGeometry(QgsGeometry.fromPointXY(runline_points))
+                    #point_feature.setAttributes(["test"])
+                    pr.addFeatures([point_feature])
+                    #point_feature.setAttribute(1, "text1")
+
+                # Specify the geometry type
+                point_layer.updateExtents()
+                point_layer.commitChanges()
+
+                #pr.addFeatures([point_feature])
+                linea = self.iface.addVectorLayer("LineString?crs=" + str(epsg_code) + "&field=id:integer&index=yes", "Line_" + str(self.eiva_dlg.layer_name.value()), "memory")
+                linea.startEditing()
+                feature = QgsFeature()
+                feature.setGeometry(QgsGeometry.fromPolylineXY(PointList))
+                feature.setAttributes([1])
+                linea.addFeature(feature)
+                linea.commitChanges()
+
+
+                """
+                Use QChainage to get KP values every 500m
+                """
+                kp_layer_name = str(self.eiva_dlg.layer_name.value()) + "_KP_pnt"
+
+                chainagetool.points_along_line(layerout=kp_layer_name,
+                                               startpoint=0,
+                                               endpoint=False,
+                                               distance=500,
+                                               label="test",
+                                               layer=linea,
+                                               selected_only=False,
+                                               force=True,
+                                               fo_fila=False,
+                                               divide=0,
+                                               decimal=2)
+
+                # chainagetool.points_along_line(layerout=kp_layer_name,
+                #                                startpoint=0,
+                #                                endpoint=,
+                #                                distance=500,
+                #                                label=,
+                #                                layer=linea,
+                #                                selected_only=False,
+                #                                force=False,
+                #                                fo_fila=False,
+                #                                divide=0,
+                #                                decimal=2)
+
+                kp_layers = QgsProject.instance().mapLayersByName(kp_layer_name)
+                print(len(kp_layers))
+                if len(kp_layers) ==1:
+                    kp_layer = kp_layers[0]
+                else:
+                    print("Wooops several layers with name:" +  str(kp_layer_name) + " Runline KP labeling difficult..." )
+                    kp_layer = kp_layers[0]
+                # Configure label settings 1
+                settings = QgsPalLayerSettings()
+                settings.fieldName = "concat('KP:' + format_number(cngmeters/1000, 3))"
+                settings.isExpression = True
+                textFormat = QgsTextFormat()
+                textFormat.setSize(10)
+                settings.setFormat(textFormat)
+                # create and append a new rule
+                root = QgsRuleBasedLabeling.Rule(QgsPalLayerSettings())
+                rule = QgsRuleBasedLabeling.Rule(settings, maximumScale=1, minimumScale=1000000)
+                rule.setDescription('KP5')
+                rule.setFilterExpression('cngmeters % 5000 = 0')
+                rule2 = QgsRuleBasedLabeling.Rule(settings, maximumScale=1, minimumScale=50000)
+                rule2.setDescription('KP05')
+                rule2.setFilterExpression('cngmeters % 500 = 0')
+
+                root.appendChild(rule)
+                root.appendChild(rule2)
+
+                # Apply label configuration
+                rules = QgsRuleBasedLabeling(root)
+                # kp_layer.setCustomProperty("labeling/enabled", "true")
+                kp_layer.setLabeling(rules)
+                kp_layer.triggerRepaint()
+                # Apply label configuration
+                kp_layer.setLabelsEnabled(True)
+
+                """
+                Set Visible Layers
+                """
+                node = QgsProject.instance().layerTreeRoot().findLayer(point_layer)
+                if node:
+                    node.setItemVisibilityChecked(False)
+
+                node2 = QgsProject.instance().layerTreeRoot().findLayer(kp_layer_name)
+                if node2:
+                    node2.setItemVisibilityChecked(True)
+
+                node3 = QgsProject.instance().layerTreeRoot().findLayer(linea)
+                if node3:
+                    node3.setItemVisibilityChecked(True)
+
+                self.iface.zoomToActiveLayer()
+
+
+                #QgsProject.instance().addMapLayers([point_layer])  # 3 correction
+                # vectorLyr = QgsVectorLayer('pyqgis_data/nyc/NYC_MUSEUMS_GEO.shp', 'Museums', "ogr")
+                # n_features = vectorLyr.featureCount()  # added line
+                # vpr = vectorLyr.dataProvider()
+                # pnt = QgsGeometry.fromPoint(QgsPoint(-74.80, 40.549))
+                # f = QgsFeature()
+                # f.setGeometry(pnt)
+                # f.setAttributes([n_features])  # added line
+                # vpr.addFeatures([f])
+                # vectorLyr.updateExtents()
+
+
+                print("Finished Loading RLN file")
+            # elif file_extension == '.rlx':
+            #     print("Importing RLX file")
+            #
+            # elif file_extension == '.wp2':
+            #     print("Importing wp2 file")
+
             else:
-                print("Can Only import RLN and RLX files at the moment")
+                err_text = "File Format: " + str(file_extension) +  " is NOT supported. CURRENTLY SUPPORTED FORMATS: RLN\nExiting..."
+                print(err_text)
                 QMessageBox.critical(self.iface.mainWindow(),
-                                     'Read Runline file',
-                                     "Could not read file extention: " + str(file_extension) + ". Only RLX and RLN is compatible?\nExiting...")
+                                     'Read EIVA file',
+                                     str(err_text))
 
-    def run_importTrack(self):
-        print("Running Track import")
-        """Run method that performs all the real work"""
 
-        # Create the dialog with elements (after translation) and keep reference
-        # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if self.track_first_start == True:
-            self.track_first_start = False
-            self.track_dlg = loadTrackDialog()
+    # def run_importRunline(self):
+    #     print("Running Runline import")
+    #     """Run method that performs all the real work"""
+    #
+    #     # Create the dialog with elements (after translation) and keep reference
+    #     # Only create GUI ONCE in callback, so that it will only load when the plugin is started
+    #     if self.runline_first_start:
+    #         self.runline_first_start = False
+    #         self.runline_dlg = loadRunlineDialog()
+    #
+    #     # show the dialog
+    #     self.runline_dlg.show()
+    #     # Run the dialog event loop
+    #     result = self.runline_dlg.exec_()
+    #
+    #     self.runline_dlg.open_folder.clicked.connect(self.open_select_runline)
+    #
+    #     if result:
+    #         # Get crs for current project
+    #         crsId = self.iface.mapCanvas().mapSettings().destinationCrs().authid()
+    #         #crsId = "EPSG=32633"
+    #         #print(crsId)
+    #         #Get runline file from GUI
+    #         runline_file = self.runline_dlg.path_rln_rlx.value()
+    #         filename, file_extension = os.path.splitext(runline_file)
+    #         #basename = os.path.basename(runline_file)
+    #         #self.runline_dlg.layer_name.setValue(basename)
+    #         if not os.path.exists(runline_file):
+    #             QMessageBox.critical(self.iface.mainWindow(),
+    #                                  'Read Runline file',
+    #                                  "Could not find Runline file. Runline file does not exist?\nExiting...")
+    #             return
+    #         if file_extension == '.rln':
+    #             print("Importing RLN file")
+    #             df_runline = pd.read_csv(runline_file, sep=';', skiprows=2, header=None)
+    #             df_runline.columns = ['eastings', 'northings']
+    #             print(df_runline.head())
+    #             # Point list for the runline
+    #             PointList = []
+    #             point_dist = []
+    #             point_dist_tot = []
+    #             # Point Layer for Runline
+    #             #param1 = 'Point?crs=' + str(crsId) + "&field=id:integer&field1=id2:str&field2=text2:str&field3=text3:str&field4=text4:str&text5=id5:str&index=yes"
+    #             param1 = 'Point?crs=' + str(
+    #                 crsId) + "&field=id:integer&index=yes"
+    #             #param2 = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s" % (
+    #             #"UTF-8", ",", "easting", "northing")
+    #             #param3 = 'Point?crs=' + str(crsId) + "&field=id:integer&index=yes"
+    #             point_layer = self.iface.addVectorLayer(param1, 'Point_' + str(self.runline_dlg.layer_name.value()), 'memory')
+    #
+    #             #fields = point_layer.pendingFields()
+    #             # Point feature for runline
+    #             point_feature = QgsFeature()
+    #
+    #             pr = point_layer.dataProvider()
+    #             print(pr.fields().count())
+    #             point_layer.startEditing()
+    #             #pr.addAttributes([QgsField("Index", QVariant.Int)])
+    #             pr.addAttributes([QgsField("Eastings", QVariant.Double)])
+    #             pr.addAttributes([QgsField("Northings", QVariant.Double)])
+    #             pr.addAttributes([QgsField("SegmentLength[m]", QVariant.Double)])
+    #             pr.addAttributes([QgsField("RunlineLength[KP]", QVariant.Double)])
+    #             point_layer.updateFields()
+    #             print(pr.fields().count())
+    #             # point_feature.setAttributes([1])
+    #
+    #             for index, row in df_runline.iterrows():
+    #                 runline_points = QgsPointXY(float(row['eastings']), float(row['northings']))
+    #
+    #                 PointList.append(runline_points)
+    #                 if index == 0:
+    #                     point_dist.append(0)
+    #                     point_dist_tot.append(0)
+    #                 else:
+    #                     point_dist.append(PointList[index].distance(PointList[index-1]))
+    #                     point_dist_tot.append(point_dist_tot[index - 1] + PointList[index].distance(PointList[index - 1]))
+    #
+    #                 point_feature.setAttributes([index, float(row['eastings']), float(row['eastings']), point_dist[index], point_dist_tot[index]/1000])
+    #                 point_feature.setGeometry(QgsGeometry.fromPointXY(runline_points))
+    #                 #point_feature.setAttributes(["test"])
+    #                 pr.addFeatures([point_feature])
+    #                 #point_feature.setAttribute(1, "text1")
+    #
+    #             # Specify the geometry type
+    #             point_layer.updateExtents()
+    #             point_layer.commitChanges()
+    #
+    #             #pr.addFeatures([point_feature])
+    #             linea = self.iface.addVectorLayer("LineString?crs=" + str(crsId) + "&field=id:integer&index=yes", "Line_" + str(self.runline_dlg.layer_name.value()), "memory")
+    #             linea.startEditing()
+    #             feature = QgsFeature()
+    #             feature.setGeometry(QgsGeometry.fromPolylineXY(PointList))
+    #             feature.setAttributes([1])
+    #             linea.addFeature(feature)
+    #             linea.commitChanges()
+    #             self.iface.zoomToActiveLayer()
+    #
+    #
+    #             #QgsProject.instance().addMapLayers([point_layer])  # 3 correction
+    #             # vectorLyr = QgsVectorLayer('pyqgis_data/nyc/NYC_MUSEUMS_GEO.shp', 'Museums', "ogr")
+    #             # n_features = vectorLyr.featureCount()  # added line
+    #             # vpr = vectorLyr.dataProvider()
+    #             # pnt = QgsGeometry.fromPoint(QgsPoint(-74.80, 40.549))
+    #             # f = QgsFeature()
+    #             # f.setGeometry(pnt)
+    #             # f.setAttributes([n_features])  # added line
+    #             # vpr.addFeatures([f])
+    #             # vectorLyr.updateExtents()
+    #
+    #
+    #             print("Finished Loading RLN file")
+    #         elif file_extension == '.rlx':
+    #             print("Importing RLX file")
+    #
+    #         elif file_extension == '.wp2':
+    #             print("Importing wp2 file")
+    #
+    #         else:
+    #             print("Can Only import RLN and RLX files at the moment")
+    #             QMessageBox.critical(self.iface.mainWindow(),
+    #                                  'Read Runline file',
+    #                                  "Could not read file extention: " + str(file_extension) + ". Only RLX and RLN is compatible?\nExiting...")
 
-        # show the dialog
-        self.track_dlg.show()
-        # Run the dialog event loop
-        result = self.track_dlg.exec_()
-
-        self.track_dlg.open_folder.clicked.connect(self.open_select_etr)
-
-        if result:
-            track_file = self.track_dlg.path_etr.value()
-            filename, file_extension = os.path.splitext(track_file)
-            if not os.path.exists(track_file):
-                QMessageBox.critical(self.iface.mainWindow(),
-                                     'Read Track file',
-                                     "Could not find Track file. Track file does not exist?\nExiting...")
-                return
-            if file_extension == '.etr':
-                print("Importing ETR file")
-            else:
-                print("Can Only import ETR files at the moment")
-                QMessageBox.critical(self.iface.mainWindow(),
-                                     'Read Track file',
-                                     "Could not read file extention: " + str(
-                                         file_extension) + ". Only ETRN is compatible?\nExiting...")
+    # def run_importTrack(self):
+    #     print("Running Track import")
+    #     """Run method that performs all the real work"""
+    #
+    #     # Create the dialog with elements (after translation) and keep reference
+    #     # Only create GUI ONCE in callback, so that it will only load when the plugin is started
+    #     if self.track_first_start == True:
+    #         self.track_first_start = False
+    #         self.track_dlg = loadTrackDialog()
+    #
+    #     # show the dialog
+    #     self.track_dlg.show()
+    #     # Run the dialog event loop
+    #     result = self.track_dlg.exec_()
+    #
+    #     self.track_dlg.open_folder.clicked.connect(self.open_select_etr)
+    #
+    #     if result:
+    #         track_file = self.track_dlg.path_etr.value()
+    #         filename, file_extension = os.path.splitext(track_file)
+    #         if not os.path.exists(track_file):
+    #             QMessageBox.critical(self.iface.mainWindow(),
+    #                                  'Read Track file',
+    #                                  "Could not find Track file. Track file does not exist?\nExiting...")
+    #             return
+    #         if file_extension == '.etr':
+    #             print("Importing ETR file")
+    #         else:
+    #             print("Can Only import ETR files at the moment")
+    #             QMessageBox.critical(self.iface.mainWindow(),
+    #                                  'Read Track file',
+    #                                  "Could not read file extention: " + str(
+    #                                      file_extension) + ". Only ETRN is compatible?\nExiting...")
 
     def run(self):
         """Run method that performs all the real work"""
 
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if self.first_start == True:
+        if self.first_start:
             self.first_start = False
             self.dlg = iSurveyToolsDialog()
 
@@ -446,6 +755,16 @@ class iSurveyTools:
         self.dlg.pB_Browse.clicked.connect(self.openSelectDB)
         self.dlg.pB_Validate.clicked.connect(self.validateMasterfile)
         self.dlg.pB_Refresh_tid_sid.clicked.connect(self.populate_tid_and_sid_list)
+        self.dlg.cB_EPSG.clicked.connect(self.handle_QGIS_Project_EPSG)
+
+        if self.dlg.cB_EPSG.isChecked():
+            epsg_code = self.iface.mapCanvas().mapSettings().destinationCrs().authid()
+        else:
+            epsg_code = self.dlg.sB_epsg.value()
+            if epsg_code == 11111:
+                epsg_code = ''
+            else:
+                epsg_code = "EPSG:" + str(epsg_code)
 
         # Create a New project
         #pathQGS = "NewProject.qgs"
@@ -456,7 +775,7 @@ class iSurveyTools:
             conn = self.initDBConnection()
             if self.dlg.cB_runline.isChecked():
                 print("Start Importing Runline")
-                sql_query_rpl = 'SELECT * FROM rpl;'
+                sql_query_rpl = 'SELECT * FROM rpl ORDER BY kp ASC;'
                 df_rpl = pd.read_sql(sql_query_rpl, conn)
                 if df_rpl.empty:
                     QMessageBox.critical(self.iface.mainWindow(),
@@ -466,10 +785,10 @@ class iSurveyTools:
                 else:
                     if not os.path.exists('C:\\temp\\'):
                         os.makedirs('C:\\temp\\')
-                    name_csv = 'C:\\temp\\temp_masterfile_table.csv'
+                    name_csv = 'C:\\temp\\temp_RPL_table.csv'
                     df_rpl.to_csv(name_csv, index=False)
                     #df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
-                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s" % ("UTF-8", ",", "easting", "northing")
+                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing", str(epsg_code))
                     #path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
                     #path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
                     # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
@@ -484,7 +803,7 @@ class iSurveyTools:
 
             if self.dlg.cB_aslaid.isChecked():
                 print("Start Importing As-Laid")
-                sql_query_as_laid = 'SELECT * FROM as_laid;'
+                sql_query_as_laid = 'SELECT * FROM as_laid ORDER BY kp ASC;'
                 df_as_laid = pd.read_sql(sql_query_as_laid, conn)
                 if df_as_laid.empty:
                     QMessageBox.critical(self.iface.mainWindow(),
@@ -493,10 +812,10 @@ class iSurveyTools:
                 else:
                     if not os.path.exists('C:\\temp\\'):
                         os.makedirs('C:\\temp\\')
-                    name_csv = 'C:\\temp\\temp_masterfile_table.csv'
+                    name_csv = 'C:\\temp\\temp_AL_table.csv'
                     df_as_laid.to_csv(name_csv, index=False)
                     #df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
-                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s" % ("UTF-8", ",", "easting", "northing")
+                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
                     #path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
                     #path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
                     # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
@@ -509,6 +828,33 @@ class iSurveyTools:
                                          'Sucessfully Imported As-Laid',
                                          "Sucessfully imported As-Laid as layer: \n MasterFileAs-Laid")
 
+                    """
+                    Adding line feature based on the points, qgis:pointstopath
+                    2020-02-08 kele 
+                    """
+                    if self.dlg.cB_aslaid_lin.isChecked():
+                        print('Creating as-laid line feature')
+                        layer = iface.activeLayer()
+                        print('Selected Layer name is {}'.format(layer.name()))
+                        alg_params = {
+                             'DATE_FORMAT': '',
+                             'INPUT': layer,
+                             'ORDER_FIELD': 'kp',
+                             'GROUP_FIELD': '',     # no grouping on as-laid
+                             'OUTPUT': 'TEMPORARY_OUTPUT'   # temporary layer
+                        }
+                        result = processing.run('qgis:pointstopath', alg_params )
+                        #TODO:add a tst too see if the process was a success
+                        # if not result.isValid():  -does not work as isValid does not work for dictionaries
+                        # print('processing failed')
+                        QgsProject.instance().addMapLayer(result['OUTPUT']) # showing layer on
+                        layer = iface.activeLayer()
+                        print('success generating path from {} with the following output name: {}'.format(layer.name(),
+                                                                                              result['OUTPUT'].name()))
+                        layer = iface.activeLayer()
+                        layer.setName('MF_as-laid_lin')     # renaming layer
+
+
             if self.dlg.cB_capjet.isChecked():
                 print("Start Capjet Track")
                 sql_query_capjet_track = 'SELECT * FROM trenching;'
@@ -520,12 +866,12 @@ class iSurveyTools:
                 else:
                     if not os.path.exists('C:\\temp\\'):
                         os.makedirs('C:\\temp\\')
-                    name_csv = 'C:\\temp\\temp_masterfile_table.csv'
+                    name_csv = 'C:\\temp\\temp_CJ_track_table.csv'
                     df_capjet_track.to_csv(name_csv, index=False)
-                    #df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
-                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s" % ("UTF-8", ",", "easting", "northing")
-                    #path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
-                    #path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
+                    # df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
+                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
+                    # path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
+                    # path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
                     # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
                     print("Path: " + path)
                     mylayer = QgsVectorLayer(path, "MasterFile Trencher Track", "delimitedtext")
@@ -535,6 +881,33 @@ class iSurveyTools:
                     QMessageBox.information(self.iface.mainWindow(),
                                          'Sucessfully Imported Trencher Track',
                                          "Sucessfully imported Trencher Track as layer: \n MasterFile Trencher Track")
+
+                    """
+                    Adding line feature based on the points, qgis:pointstopath
+                    2020-02-08 kele 
+                    """
+                    if self.dlg.cB_capjet_lin.isChecked():
+                        print('Creating capjet track line feature')
+                        layer = iface.activeLayer()
+                        print('Selected Layer name is {}'.format(layer.name()))
+                        alg_params = {
+                             'DATE_FORMAT': '',
+                             'INPUT': layer,
+                             'ORDER_FIELD': 'kp',
+                             'GROUP_FIELD': 'trenching_id',     # no grouping on as-laid
+                             'OUTPUT': 'TEMPORARY_OUTPUT'   # temporary layer
+                        }
+                        result = processing.run('qgis:pointstopath', alg_params )
+                        #TODO:add a tst too see if the process was a success
+                        # if not result.isValid():  -does not work as isValid does not work for dictionaries
+                        # print('processing failed')
+                        QgsProject.instance().addMapLayer(result['OUTPUT']) # showing layer on
+                        layer = iface.activeLayer()
+                        print('success generating path from {} with the following output name: {}'.format(layer.name(),
+                                                                                              result['OUTPUT'].name()))
+                        layer = iface.activeLayer()
+                        layer.setName('MF_capjet_track_lin')     # renaming layer
+
 
             if self.dlg.cB_astrenched.isChecked():
                 print("Start Importing As-Trenched")
@@ -547,10 +920,10 @@ class iSurveyTools:
                 else:
                     if not os.path.exists('C:\\temp\\'):
                         os.makedirs('C:\\temp\\')
-                    name_csv = 'C:\\temp\\temp_masterfile_table.csv'
+                    name_csv = 'C:\\temp\\temp_AT_table.csv'
                     df_as_trenched.to_csv(name_csv, index=False)
                     #df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
-                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s" % ("UTF-8", ",", "easting", "northing")
+                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
                     #path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
                     #path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
                     # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
@@ -563,6 +936,31 @@ class iSurveyTools:
                                          'Sucessfully Imported As-Trenched Pipe Pos',
                                          "Sucessfully imported As-Trenched Pipe Pos as layer: \n MasterFile As-Trenched Pipe Pos")
 
+                    """
+                    Adding line feature based on the points, qgis:pointstopath
+                    2020-02-08 kele 
+                    """
+                    if self.dlg.cB_astrenched_lin.isChecked():
+                        print('Creating as-trenched line feature')
+                        layer = iface.activeLayer()
+                        print('Selected Layer name is {}'.format(layer.name()))
+                        alg_params = {
+                             'DATE_FORMAT': '',
+                             'INPUT': layer,
+                             'ORDER_FIELD': 'kp',
+                             'GROUP_FIELD': 'sid_id',     # grouping on SID ID
+                             'OUTPUT': 'TEMPORARY_OUTPUT'   # temporary layer, Path given name
+                        }
+
+                        result = processing.run('qgis:pointstopath', alg_params)
+                        QgsProject.instance().addMapLayer(result['OUTPUT']) # showing layer on
+                        layer = iface.activeLayer()
+                        print('success generating path from {} with the following output name: {}'.format(layer.name(),
+                                                                                              result['OUTPUT'].name()))
+                        layer = iface.activeLayer()
+                        layer.setName('MF_as-trenched_lin')     # renaming layer
+
+
             if self.dlg.cB_events.isChecked():
                 print("Start Importing Events")
                 sql_query_events = 'SELECT * FROM events;'
@@ -574,10 +972,10 @@ class iSurveyTools:
                 else:
                     if not os.path.exists('C:\\temp\\'):
                         os.makedirs('C:\\temp\\')
-                    name_csv = 'C:\\temp\\temp_masterfile_table.csv'
+                    name_csv = 'C:\\temp\\temp_events_table.csv'
                     df_events.to_csv(name_csv, index=False)
                     #df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
-                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s" % ("UTF-8", ",", "easting", "northing")
+                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
                     #path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
                     #path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
                     # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
@@ -589,6 +987,7 @@ class iSurveyTools:
                     QMessageBox.information(self.iface.mainWindow(),
                                          'Sucessfully Imported Events',
                                          "Sucessfully imported Events as layer: \n MasterFile Events")
+
 
             if self.dlg.cB_capjet_tid.isChecked():
                 print("Start Capjet Track TID")
@@ -604,11 +1003,10 @@ class iSurveyTools:
                 else:
                     if not os.path.exists('C:\\temp\\'):
                         os.makedirs('C:\\temp\\')
-                    name_csv = 'C:\\temp\\temp_masterfile_table.csv'
+                    name_csv = 'C:\\temp\\temp_TID_table.csv'
                     df_capjet_track.to_csv(name_csv, index=False)
                     # df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
-                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s" % (
-                    "UTF-8", ",", "easting", "northing")
+                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
                     # path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
                     # path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
                     # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
@@ -635,11 +1033,10 @@ class iSurveyTools:
                 else:
                     if not os.path.exists('C:\\temp\\'):
                         os.makedirs('C:\\temp\\')
-                    name_csv = 'C:\\temp\\temp_masterfile_table.csv'
+                    name_csv = 'C:\\temp\\temp_SID_table.csv'
                     df_as_trenched.to_csv(name_csv, index=False)
                     # df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
-                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s" % (
-                    "UTF-8", ",", "easting", "northing")
+                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
                     # path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
                     # path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
                     # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
