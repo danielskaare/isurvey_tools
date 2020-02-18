@@ -27,7 +27,7 @@ from qgis.PyQt.QtWidgets import QAction
 from qgis.utils import iface # 2020-02-09 kele
 
 # Import necessary geometric objects from shapely module
-from shapely.geometry import Point, LineString
+#from shapely.geometry import Point, LineString
 
 import sqlite3, sys
 import pandas as pd
@@ -424,21 +424,21 @@ class iSurveyTools:
                 # Point Layer for Runline
                 #param1 = 'Point?crs=' + str(crsId) + "&field=id:integer&field1=id2:str&field2=text2:str&field3=text3:str&field4=text4:str&text5=id5:str&index=yes"
                 param1 = "Point?crs=%s&field=id:integer&index=yes" % (str(epsg_code))
-                point_layer = self.iface.addVectorLayer(param1, 'Point_' + str(self.eiva_dlg.layer_name.value()), 'memory')
+                rpl_points_layer = self.iface.addVectorLayer(param1, str(self.eiva_dlg.layer_name.value()) + '_Points', 'memory')
 
-                #fields = point_layer.pendingFields()
+                #fields = rpl_points_layer.pendingFields()
                 # Point feature for runline
                 point_feature = QgsFeature()
 
-                pr = point_layer.dataProvider()
+                pr = rpl_points_layer.dataProvider()
                 print(pr.fields().count())
-                point_layer.startEditing()
+                rpl_points_layer.startEditing()
                 #pr.addAttributes([QgsField("Index", QVariant.Int)])
                 pr.addAttributes([QgsField("Eastings", QVariant.Double)])
                 pr.addAttributes([QgsField("Northings", QVariant.Double)])
                 pr.addAttributes([QgsField("SegmentLength[m]", QVariant.Double)])
                 pr.addAttributes([QgsField("RunlineLength[KP]", QVariant.Double)])
-                point_layer.updateFields()
+                rpl_points_layer.updateFields()
                 print(pr.fields().count())
                 # point_feature.setAttributes([1])
 
@@ -460,55 +460,44 @@ class iSurveyTools:
                     #point_feature.setAttribute(1, "text1")
 
                 # Specify the geometry type
-                point_layer.updateExtents()
-                point_layer.commitChanges()
+                rpl_points_layer.updateExtents()
+                rpl_points_layer.commitChanges()
 
                 #pr.addFeatures([point_feature])
-                linea = self.iface.addVectorLayer("LineString?crs=" + str(epsg_code) + "&field=id:integer&index=yes", "Line_" + str(self.eiva_dlg.layer_name.value()), "memory")
-                linea.startEditing()
+                rpl_line_layer = self.iface.addVectorLayer("LineString?crs=" + str(epsg_code) + "&field=id:integer&index=yes", str(self.eiva_dlg.layer_name.value()) + "_Line", "memory")
+                rpl_line_layer.startEditing()
                 feature = QgsFeature()
                 feature.setGeometry(QgsGeometry.fromPolylineXY(PointList))
                 feature.setAttributes([1])
-                linea.addFeature(feature)
-                linea.commitChanges()
+                rpl_line_layer.addFeature(feature)
+                rpl_line_layer.loadNamedStyle('QGIS-styles/RPL_line_direction.qml')
+                rpl_line_layer.commitChanges()
 
 
                 """
                 Use QChainage to get KP values every 500m
                 """
-                kp_layer_name = str(self.eiva_dlg.layer_name.value()) + "_KP_pnt"
+                kp_layer_name = str(self.eiva_dlg.layer_name.value()) + "_KP_Points"
 
                 chainagetool.points_along_line(layerout=kp_layer_name,
                                                startpoint=0,
                                                endpoint=False,
                                                distance=500,
                                                label="test",
-                                               layer=linea,
+                                               layer=rpl_line_layer,
                                                selected_only=False,
                                                force=True,
                                                fo_fila=False,
                                                divide=0,
                                                decimal=2)
 
-                # chainagetool.points_along_line(layerout=kp_layer_name,
-                #                                startpoint=0,
-                #                                endpoint=,
-                #                                distance=500,
-                #                                label=,
-                #                                layer=linea,
-                #                                selected_only=False,
-                #                                force=False,
-                #                                fo_fila=False,
-                #                                divide=0,
-                #                                decimal=2)
-
-                kp_layers = QgsProject.instance().mapLayersByName(kp_layer_name)
-                print(len(kp_layers))
-                if len(kp_layers) ==1:
-                    kp_layer = kp_layers[0]
+                project_layers = QgsProject.instance().mapLayersByName(kp_layer_name)
+                print(len(project_layers))
+                if len(project_layers) ==1:
+                    rpl_kp_pnt_layer = project_layers[0]
                 else:
                     print("Wooops several layers with name:" +  str(kp_layer_name) + " Runline KP labeling difficult..." )
-                    kp_layer = kp_layers[0]
+                    rpl_kp_pnt_layer = project_layers[0]
                 # Configure label settings 1
                 settings = QgsPalLayerSettings()
                 settings.fieldName = "concat('KP:' + format_number(cngmeters/1000, 3))"
@@ -530,16 +519,16 @@ class iSurveyTools:
 
                 # Apply label configuration
                 rules = QgsRuleBasedLabeling(root)
-                # kp_layer.setCustomProperty("labeling/enabled", "true")
-                kp_layer.setLabeling(rules)
-                kp_layer.triggerRepaint()
+                # rpl_kp_pnt_layer.setCustomProperty("labeling/enabled", "true")
+                rpl_kp_pnt_layer.setLabeling(rules)
+                rpl_kp_pnt_layer.triggerRepaint()
                 # Apply label configuration
-                kp_layer.setLabelsEnabled(True)
+                rpl_kp_pnt_layer.setLabelsEnabled(True)
 
                 """
                 Set Visible Layers
                 """
-                node = QgsProject.instance().layerTreeRoot().findLayer(point_layer)
+                node = QgsProject.instance().layerTreeRoot().findLayer(rpl_points_layer)
                 if node:
                     node.setItemVisibilityChecked(False)
 
@@ -547,14 +536,14 @@ class iSurveyTools:
                 if node2:
                     node2.setItemVisibilityChecked(True)
 
-                node3 = QgsProject.instance().layerTreeRoot().findLayer(linea)
+                node3 = QgsProject.instance().layerTreeRoot().findLayer(rpl_line_layer)
                 if node3:
                     node3.setItemVisibilityChecked(True)
 
                 self.iface.zoomToActiveLayer()
 
 
-                #QgsProject.instance().addMapLayers([point_layer])  # 3 correction
+                #QgsProject.instance().addMapLayers([rpl_points_layer])  # 3 correction
                 # vectorLyr = QgsVectorLayer('pyqgis_data/nyc/NYC_MUSEUMS_GEO.shp', 'Museums', "ogr")
                 # n_features = vectorLyr.featureCount()  # added line
                 # vpr = vectorLyr.dataProvider()
@@ -793,7 +782,7 @@ class iSurveyTools:
                     #path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
                     # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
                     print("Path: " + path)
-                    mylayer = QgsVectorLayer(path, "MasterFile_Runline", "delimitedtext")
+                    mylayer = QgsVectorLayer(path, "MF Runline", "delimitedtext")
                     if not mylayer.isValid():
                         print("Layer is not valid")
                     project.addMapLayer(mylayer)
@@ -816,11 +805,8 @@ class iSurveyTools:
                     df_as_laid.to_csv(name_csv, index=False)
                     #df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
                     path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
-                    #path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
-                    #path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
-                    # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
                     print("Path: " + path)
-                    mylayer = QgsVectorLayer(path, "MasterFile As-Laid", "delimitedtext")
+                    mylayer = QgsVectorLayer(path, "MF As-Laid", "delimitedtext")
                     if not mylayer.isValid():
                         print("Layer is not valid")
                     project.addMapLayer(mylayer)
@@ -843,8 +829,8 @@ class iSurveyTools:
                              'GROUP_FIELD': '',     # no grouping on as-laid
                              'OUTPUT': 'TEMPORARY_OUTPUT'   # temporary layer
                         }
-                        result = processing.run('qgis:pointstopath', alg_params )
-                        #TODO:add a tst too see if the process was a success
+                        result = processing.run('qgis:pointstopath', alg_params)
+                        # TODO:add a test to see if the process was a success
                         # if not result.isValid():  -does not work as isValid does not work for dictionaries
                         # print('processing failed')
                         QgsProject.instance().addMapLayer(result['OUTPUT']) # showing layer on
@@ -853,7 +839,6 @@ class iSurveyTools:
                                                                                               result['OUTPUT'].name()))
                         layer = iface.activeLayer()
                         layer.setName('MF_as-laid_lin')     # renaming layer
-
 
             if self.dlg.cB_capjet.isChecked():
                 print("Start Capjet Track")
@@ -874,13 +859,11 @@ class iSurveyTools:
                     # path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
                     # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
                     print("Path: " + path)
-                    mylayer = QgsVectorLayer(path, "MasterFile Trencher Track", "delimitedtext")
+                    mylayer = QgsVectorLayer(path, "MF Trencher Track", "delimitedtext")
                     if not mylayer.isValid():
                         print("Layer is not valid")
                     project.addMapLayer(mylayer)
-                    QMessageBox.information(self.iface.mainWindow(),
-                                         'Sucessfully Imported Trencher Track',
-                                         "Sucessfully imported Trencher Track as layer: \n MasterFile Trencher Track")
+
 
                     """
                     Adding line feature based on the points, qgis:pointstopath
@@ -898,7 +881,7 @@ class iSurveyTools:
                              'OUTPUT': 'TEMPORARY_OUTPUT'   # temporary layer
                         }
                         result = processing.run('qgis:pointstopath', alg_params )
-                        #TODO:add a tst too see if the process was a success
+                        # TODO:add a tst too see if the process was a success
                         # if not result.isValid():  -does not work as isValid does not work for dictionaries
                         # print('processing failed')
                         QgsProject.instance().addMapLayer(result['OUTPUT']) # showing layer on
@@ -906,8 +889,19 @@ class iSurveyTools:
                         print('success generating path from {} with the following output name: {}'.format(layer.name(),
                                                                                               result['OUTPUT'].name()))
                         layer = iface.activeLayer()
-                        layer.setName('MF_capjet_track_lin')     # renaming layer
-
+                        layer.setName('MF Trencher Track_Line')     # renaming layer
+                        layer.loadNamedStyle(
+                            os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'TID_trenched.qml'))
+                        """
+                        Set Visible Layers
+                        """
+                        node = QgsProject.instance().layerTreeRoot().findLayer(mylayer)
+                        if node:
+                            node.setItemVisibilityChecked(False)
+                        self.iface.zoomToActiveLayer()
+                    QMessageBox.information(self.iface.mainWindow(),
+                                            'Sucessfully Imported Trencher Track',
+                                            "Sucessfully imported Trencher Track as layer: \n MF Trencher Track")
 
             if self.dlg.cB_astrenched.isChecked():
                 print("Start Importing As-Trenched")
@@ -922,13 +916,9 @@ class iSurveyTools:
                         os.makedirs('C:\\temp\\')
                     name_csv = 'C:\\temp\\temp_AT_table.csv'
                     df_as_trenched.to_csv(name_csv, index=False)
-                    #df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
-                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
-                    #path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
-                    #path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
-                    # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
+                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing", str(epsg_code))
                     print("Path: " + path)
-                    mylayer = QgsVectorLayer(path, "MasterFile As-Trenched Pipe Pos", "delimitedtext")
+                    mylayer = QgsVectorLayer(path, "MF AT-X Pipe Pos", "delimitedtext")
                     if not mylayer.isValid():
                         print("Layer is not valid")
                     project.addMapLayer(mylayer)
@@ -953,13 +943,12 @@ class iSurveyTools:
                         }
 
                         result = processing.run('qgis:pointstopath', alg_params)
-                        QgsProject.instance().addMapLayer(result['OUTPUT']) # showing layer on
+                        QgsProject.instance().addMapLayer(result['OUTPUT'])  # showing layer on
                         layer = iface.activeLayer()
                         print('success generating path from {} with the following output name: {}'.format(layer.name(),
                                                                                               result['OUTPUT'].name()))
                         layer = iface.activeLayer()
-                        layer.setName('MF_as-trenched_lin')     # renaming layer
-
+                        layer.setName('MF AT-X_Line')     # renaming layer
 
             if self.dlg.cB_events.isChecked():
                 print("Start Importing Events")
@@ -974,20 +963,21 @@ class iSurveyTools:
                         os.makedirs('C:\\temp\\')
                     name_csv = 'C:\\temp\\temp_events_table.csv'
                     df_events.to_csv(name_csv, index=False)
-                    #df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
                     path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
-                    #path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
-                    #path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
-                    # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
                     print("Path: " + path)
-                    mylayer = QgsVectorLayer(path, "MasterFile Events", "delimitedtext")
+                    mylayer = QgsVectorLayer(path, "MF Events", "delimitedtext")
                     if not mylayer.isValid():
                         print("Layer is not valid")
                     project.addMapLayer(mylayer)
+                    mylayer.loadNamedStyle(os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'MF_events.qml'))
+                    mylayer.triggerRepaint()
+                    mylayer.setLabelsEnabled(True)
+
+
+
                     QMessageBox.information(self.iface.mainWindow(),
                                          'Sucessfully Imported Events',
                                          "Sucessfully imported Events as layer: \n MasterFile Events")
-
 
             if self.dlg.cB_capjet_tid.isChecked():
                 print("Start Capjet Track TID")
@@ -1005,19 +995,47 @@ class iSurveyTools:
                         os.makedirs('C:\\temp\\')
                     name_csv = 'C:\\temp\\temp_TID_table.csv'
                     df_capjet_track.to_csv(name_csv, index=False)
-                    # df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
                     path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
-                    # path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
-                    # path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
-                    # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
                     print("Path: " + path)
-                    mylayer = QgsVectorLayer(path, "Trencher Track TID" + str(tid_nr), "delimitedtext")
+                    mylayer = QgsVectorLayer(path, "TID:%s Trencher Track" % str(tid_nr), "delimitedtext")
                     if not mylayer.isValid():
                         print("Layer is not valid")
                     project.addMapLayer(mylayer)
+
+                    """
+                    Add TID Track as line layer also
+                    """
+                    print('Creating TID Track as line layer also')
+                    alg_params = {
+                        'DATE_FORMAT': '',
+                        'INPUT': mylayer,
+                        'ORDER_FIELD': 'kp',
+                        'GROUP_FIELD': 'trenching_id',  # no grouping on as-laid
+                        'OUTPUT': 'TEMPORARY_OUTPUT'  # temporary layer
+                    }
+                    result = processing.run('qgis:pointstopath', alg_params)
+                    # TODO:add a tst too see if the process was a success
+                    # if not result.isValid():  -does not work as isValid does not work for dictionaries
+                    # print('processing failed')
+                    tid_line_layer = QgsProject.instance().addMapLayer(result['OUTPUT'])  # showing layer on
+                    print('success generating path from {} with the following output name: {}'.format(
+                        tid_line_layer.name(),
+                        result[
+                            'OUTPUT'].name()))
+                    tid_line_layer.setName("TID%s Trencher Track_Line" % str(tid_nr))  # renaming layer
+                    tid_line_layer.loadNamedStyle(
+                        os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'TID_trenched.qml'))
+                    """
+                    Set Visible Layers
+                    """
+                    node = QgsProject.instance().layerTreeRoot().findLayer(mylayer)
+                    if node:
+                        node.setItemVisibilityChecked(False)
+                    self.iface.zoomToActiveLayer()
+
                     QMessageBox.information(self.iface.mainWindow(),
                                             'Sucessfully Imported Trencher Track TID' + str(tid_nr),
-                                            "Sucessfully imported Trencher Track as layer: \n Trencher Track TID" + str(tid_nr))
+                                            "Sucessfully imported Trencher Track as layer: \n TID%s Trencher Track_Line" % str(tid_nr))
 
             if self.dlg.cB_astrenched_sid.isChecked():
                 print("Start Importing As-Trenched")
@@ -1035,18 +1053,43 @@ class iSurveyTools:
                         os.makedirs('C:\\temp\\')
                     name_csv = 'C:\\temp\\temp_SID_table.csv'
                     df_as_trenched.to_csv(name_csv, index=False)
-                    # df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
                     path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
-                    # path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
-                    # path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
-                    # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
                     print("Path: " + path)
-                    mylayer = QgsVectorLayer(path, "As-Trenched Pipe Pos SID" + str(sid_nr), "delimitedtext")
+                    mylayer = QgsVectorLayer(path, "SID%s AT-X Pipe Pos" % str(sid_nr), "delimitedtext")
                     if not mylayer.isValid():
                         print("Layer is not valid")
                     project.addMapLayer(mylayer)
+
+                    """
+                    Add SID AT Track as line layer also
+                    """
+                    print('Creating SID AT Track as line layer also')
+                    alg_params = {
+                        'DATE_FORMAT': '',
+                        'INPUT': mylayer,
+                        'ORDER_FIELD': 'kp',
+                        'GROUP_FIELD': 'sid_id',  # no grouping on as-laid
+                        'OUTPUT': 'TEMPORARY_OUTPUT'  # temporary layer
+                    }
+                    result = processing.run('qgis:pointstopath', alg_params)
+                    # TODO:add a tst too see if the process was a success
+                    # if not result.isValid():  -does not work as isValid does not work for dictionaries
+                    # print('processing failed')
+                    at_line_layer = QgsProject.instance().addMapLayer(result['OUTPUT'])  # showing layer on
+                    print('success generating path from {} with the following output name: {}'.format(at_line_layer.name(),
+                                                                                                      result[
+                                                                                                          'OUTPUT'].name()))
+                    at_line_layer.setName("SID%s AT-X Pipe Pos_Line" % str(sid_nr))  # renaming layer
+                    at_line_layer.loadNamedStyle(os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'SID_as-trenched.qml'))
+                    """
+                    Set Visible Layers
+                    """
+                    node = QgsProject.instance().layerTreeRoot().findLayer(mylayer)
+                    if node:
+                        node.setItemVisibilityChecked(False)
+                    self.iface.zoomToActiveLayer()
                     QMessageBox.information(self.iface.mainWindow(),
-                                            'Sucessfully Imported As-Trenched Pipe Pos SID' + str(sid_nr),
-                                            "Sucessfully imported As-Trenched Pipe Pos as layer: \n As-Trenched Pipe Pos SID" + str(sid_nr))
+                                            'Sucessfully Imported',
+                                            "Sucessfully imported As-Trenched Pipe Pos as layer: \n SID%s AT-X Pipe Pos_Line" % str(sid_nr))
 
             print("Finished Program")
