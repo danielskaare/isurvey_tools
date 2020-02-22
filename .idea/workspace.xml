@@ -1,39 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="71041ddf-e759-4072-a0e3-c518f4cf9993" name="Default" comment="NEW: Style templates used for SID/TID, and MF Trencher Track&#10;UPDATE: EIVA Runline&#10;MISC...">
-      <change afterPath="$PROJECT_DIR$/QGIS Templates/A0_one_chart_with_profile.qpt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS Templates/A0_one_chart_with_profile_v2.qpt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS Templates/A1_chart_with_profile.qpt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS Templates/A1_chart_with_profile_v2.qpt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS Templates/A4_chart_legend_bottom.qpt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS Templates/Layout template v1.qpt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS Templates/Layout template v2.qpt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS Templates/Layout template v3.qpt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS Templates/depth_profile_plotly.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/DEM_style.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/HS_style.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/MF_as-trenched.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/MF_events.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/MF_trenching.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/RPL_line_direction.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/Route_kp_pnt.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/SID_as-trenched.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/TID_trenched.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/contour.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/contour_2m.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/contour_2m_Z.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/QGIS-styles/route_line.qml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/load_eiva_dialog_box.ui" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/isurvey_tools.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/isurvey_tools.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+    <list default="true" id="71041ddf-e759-4072-a0e3-c518f4cf9993" name="Default" comment="MISC...">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/isurvey_tools.py" beforeDir="false" afterPath="$PROJECT_DIR$/isurvey_tools.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/isurvey_tools_dialog_base.ui" beforeDir="false" afterPath="$PROJECT_DIR$/isurvey_tools_dialog_base.ui" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="PREVIOUS_COMMIT_AUTHORS">
@@ -42,6 +25,7 @@
       </list>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="UPDATE_TYPE" value="MERGE" />
   </component>
   <component name="ProjectId" id="1XzCfhqNrr6Z9xkuw1xjLlCvIOl" />
   <component name="ProjectViewState">
@@ -50,8 +34,8 @@
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/../Masterfile" />
-    <property name="settings.editor.selected.configurable" value="settings.github" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
   </component>
   <component name="RunManager">
     <configuration name="Master_file_2" type="PythonConfigurationType" factoryName="Python" temporary="true">
@@ -92,28 +76,68 @@
       <option name="presentableId" value="Default" />
       <updated>1579429602482</updated>
     </task>
+    <task id="LOCAL−00001" summary="NEW: Style templates used for SID/TID, and MF Trencher Track&#10;UPDATE: EIVA Runline&#10;MISC...">
+      <created>1582057141410</created>
+      <option name="number" value="LOCAL−00001" />
+      <option name="presentableId" value="LOCAL−00001" />
+      <updated>1582057141411</updated>
+    </task>
+    <task id="LOCAL−00002" summary="NEW: Style templates used for SID/TID, and MF Trencher Track&#10;UPDATE: EIVA Runline&#10;MISC...">
+      <created>1582057217974</created>
+      <option name="number" value="LOCAL−00002" />
+      <option name="presentableId" value="LOCAL−00002" />
+      <updated>1582057217974</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="NEW: Style templates used for SID/TID, and MF Trencher Track&#10;UPDATE: EIVA Runline&#10;MISC..." />
-    <option name="LAST_COMMIT_MESSAGE" value="NEW: Style templates used for SID/TID, and MF Trencher Track&#10;UPDATE: EIVA Runline&#10;MISC..." />
+    <MESSAGE value="MISC..." />
+    <option name="LAST_COMMIT_MESSAGE" value="MISC..." />
   </component>
   <component name="WindowStateProjectService">
-    <state x="2303" y="38" width="1094" height="535" key="CommitChangelistDialog2" timestamp="1582057139534">
+    <state x="2360" y="256" width="1094" height="535" key="CommitChangelistDialog2" timestamp="1582363671385">
       <screen x="1920" y="0" width="1920" height="1160" />
     </state>
-    <state x="2303" y="38" width="1094" height="535" key="CommitChangelistDialog2/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582057139534" />
+    <state x="2303" y="38" width="1094" height="535" key="CommitChangelistDialog2/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582057216076" />
+    <state x="2360" y="256" key="CommitChangelistDialog2/0.0.1920.1160/3840.0.1920.1160/1920.0.1920.1160@0.0.1920.1160" timestamp="1582363671385" />
     <state x="2660" y="335" key="FileChooserDialogImpl" timestamp="1582039666887">
       <screen x="1920" y="0" width="1920" height="1160" />
     </state>
     <state x="2660" y="335" key="FileChooserDialogImpl/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582039666887" />
-    <state x="2381" y="222" key="SettingsEditor" timestamp="1582040111579">
-      <screen x="1920" y="0" width="1920" height="1160" />
+    <state x="461" y="222" key="SettingsEditor" timestamp="1582362863798">
+      <screen x="0" y="0" width="1920" height="1160" />
     </state>
     <state x="2381" y="222" key="SettingsEditor/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582040111579" />
+    <state x="461" y="222" key="SettingsEditor/0.0.1920.1160/3840.0.1920.1160/1920.0.1920.1160@0.0.1920.1160" timestamp="1582362863798" />
+    <state x="2333" y="109" width="1298" height="721" key="Vcs.Push.Dialog.v2" timestamp="1582363495062">
+      <screen x="1920" y="0" width="1920" height="1160" />
+    </state>
+    <state x="2125" y="140" width="1298" height="721" key="Vcs.Push.Dialog.v2/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582057251415" />
+    <state x="2333" y="109" key="Vcs.Push.Dialog.v2/0.0.1920.1160/3840.0.1920.1160/1920.0.1920.1160@0.0.1920.1160" timestamp="1582363495062" />
     <state x="655" y="404" key="com.intellij.ide.util.TipDialog" timestamp="1582039651702">
       <screen x="0" y="0" width="1920" height="1160" />
     </state>
     <state x="655" y="404" key="com.intellij.ide.util.TipDialog/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@0.0.1920.1160" timestamp="1582039651702" />
+    <state x="1538" y="497" key="com.intellij.openapi.vcs.update.UpdateOrStatusOptionsDialogupdate-v2" timestamp="1582363563339">
+      <screen x="0" y="0" width="1920" height="1160" />
+    </state>
+    <state x="1538" y="497" key="com.intellij.openapi.vcs.update.UpdateOrStatusOptionsDialogupdate-v2/0.0.1920.1160/3840.0.1920.1160/1920.0.1920.1160@0.0.1920.1160" timestamp="1582363563339" />
+    <state x="2543" y="255" key="search.everywhere.popup" timestamp="1582197263756">
+      <screen x="1920" y="0" width="1920" height="1160" />
+    </state>
+    <state x="2543" y="255" key="search.everywhere.popup/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582197263756" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/isurvey_tools.py</url>
+          <line>813</line>
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>

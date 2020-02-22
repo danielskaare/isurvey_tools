@@ -31,11 +31,12 @@ from qgis.utils import iface # 2020-02-09 kele
 
 import sqlite3, sys
 import pandas as pd
-from qgis.core import QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling
+from qgis.core import QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer
 from urllib.request import pathname2url
 from os import path
 from pathlib import Path
 from qchainage import chainagetool
+from random import randrange
 
 import processing   # make it possible to use the processing toolbox functions like "point to path"
 import requests
@@ -403,20 +404,20 @@ class iSurveyTools:
 
         if result:
             #Get EIVA file from GUI
-            runline_file = self.eiva_dlg.path_eiva_file.value()
-            filename, file_extension = os.path.splitext(runline_file)
+            eiva_file = self.eiva_dlg.path_eiva_file.value()
+            filename, file_extension = os.path.splitext(eiva_file)
             #basename = os.path.basename(runline_file)
             #self.runline_dlg.layer_name.setValue(basename)
-            if not os.path.exists(runline_file):
+            if not os.path.exists(eiva_file):
                 QMessageBox.critical(self.iface.mainWindow(),
                                      'Read EIVA file',
                                      "Could not find EIVA file. File does not exist?\nExiting...")
                 return
             if file_extension == '.rln':
                 print("Importing RLN file")
-                df_runline = pd.read_csv(runline_file, sep=';', skiprows=2, header=None)
+                df_runline = pd.read_csv(eiva_file, sep=';', skiprows=2, header=None)
                 df_runline.columns = ['eastings', 'northings']
-                print(df_runline.head())
+                # print(df_runline.head())
                 # Point list for the runline
                 PointList = []
                 point_dist = []
@@ -470,7 +471,8 @@ class iSurveyTools:
                 feature.setGeometry(QgsGeometry.fromPolylineXY(PointList))
                 feature.setAttributes([1])
                 rpl_line_layer.addFeature(feature)
-                rpl_line_layer.loadNamedStyle('QGIS-styles/RPL_line_direction.qml')
+                rpl_line_layer.loadNamedStyle(
+                    os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'RPL_line_direction.qml'))
                 rpl_line_layer.commitChanges()
 
 
@@ -478,7 +480,6 @@ class iSurveyTools:
                 Use QChainage to get KP values every 500m
                 """
                 kp_layer_name = str(self.eiva_dlg.layer_name.value()) + "_KP_Points"
-
                 chainagetool.points_along_line(layerout=kp_layer_name,
                                                startpoint=0,
                                                endpoint=False,
@@ -491,13 +492,8 @@ class iSurveyTools:
                                                divide=0,
                                                decimal=2)
 
-                project_layers = QgsProject.instance().mapLayersByName(kp_layer_name)
-                print(len(project_layers))
-                if len(project_layers) ==1:
-                    rpl_kp_pnt_layer = project_layers[0]
-                else:
-                    print("Wooops several layers with name:" +  str(kp_layer_name) + " Runline KP labeling difficult..." )
-                    rpl_kp_pnt_layer = project_layers[0]
+                rpl_kp_pnt_layer = iface.activeLayer()
+
                 # Configure label settings 1
                 settings = QgsPalLayerSettings()
                 settings.fieldName = "concat('KP:' + format_number(cngmeters/1000, 3))"
@@ -524,6 +520,11 @@ class iSurveyTools:
                 rpl_kp_pnt_layer.triggerRepaint()
                 # Apply label configuration
                 rpl_kp_pnt_layer.setLabelsEnabled(True)
+
+                rpl_kp_pnt_layer.loadNamedStyle(
+                    os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'RPL_line_direction.qml'))
+
+
 
                 """
                 Set Visible Layers
@@ -559,6 +560,62 @@ class iSurveyTools:
             # elif file_extension == '.rlx':
             #     print("Importing RLX file")
             #
+            elif file_extension == '.etr':
+                print("Importing ETR file")
+                df_etr = pd.read_csv(eiva_file, sep=' ')
+                #df_etr.columns = ['eastings', 'northings']
+                #print(df_etr.head())
+                #print(df_etr.columns)
+                etr_layer = QgsVectorLayer("LineString?crs=%s" % (str(epsg_code)), str(self.eiva_dlg.layer_name.value()) + '_LineTest', "memory")
+
+                pr = etr_layer.dataProvider()
+
+                attrib_list = []
+
+                for i in list(df_etr):
+                    attrib_list.append(QgsField(i, QVariant.String))
+
+                pr.addAttributes(attrib_list)
+                etr_layer.updateFields()
+
+                # Add the layer in QGIS project
+                QgsProject.instance().addMapLayer(etr_layer)
+
+                # Start editing layer
+
+                etr_layer.startEditing()
+                feat = QgsFeature(etr_layer.fields())  # Create the feature
+
+                point_list = []
+                attribute_list = []
+
+                for index, row in df_etr.iterrows():
+                    positions = QgsPoint(float(row['Easting']), float(row['Northing']))
+                    point_list.append(positions)
+                    #feat.setAttribute("Date", row['Date'])  # set attributes
+                    #feat.setAttribute("Time", row['Time'])
+                print(point_list)
+
+                linea = iface.addVectorLayer("LineString?crs=epsg:4326&field=id:integer&index=yes", "Linea", "memory")
+                linea.startEditing()
+                feature = QgsFeature()
+                feature.setGeometry(QgsGeometry.fromPolyline(point_list))
+                feature.setAttributes([1])
+                linea.addFeature(feature, True)
+                linea.commitChanges()
+                iface.zoomToActiveLayer()
+                # # Create HERE the line you want with the 2 xy coordinates
+                # feat.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(12, 12),
+                #                                              QgsPointXY(300, 300)]))
+                #
+                # etr_layer.addFeature(feat)  # add the feature to the layer
+                # etr_layer.endEditCommand()  # Stop editing
+                # etr_layer.commitChanges()  # Save changes
+                #
+                # self.iface.zoomToActiveLayer()
+                print("Finished importing ETR file")
+
+
             # elif file_extension == '.wp2':
             #     print("Importing wp2 file")
 
@@ -569,6 +626,33 @@ class iSurveyTools:
                                      'Read EIVA file',
                                      str(err_text))
 
+    def create_categorized_layers(self, r_layer, id_attr):
+        id_attr = str(id_attr)
+        # get unique values
+        fni = r_layer.fields().indexFromName(id_attr)
+        unique_ids = r_layer.dataProvider().uniqueValues(fni)
+        QgsMessageLog.logMessage("sstyle for run layer..." + str(unique_ids))
+        # define categories
+        categories = []
+        for unique_id in unique_ids:
+            # initialize the default symbol for this geometry type
+            symbol = QgsSymbol.defaultSymbol(r_layer.geometryType())
+            symbol.setOpacity(0.5)
+
+            layer_style={}
+            layer_style['color'] = '%d, %d, %d' % (randrange(0, 256), randrange(0, 256), randrange(0, 256))
+            layer_style['outline'] = '#000000'
+            symbolLayer = QgsSimpleFillSymbolLayer.create(layer_style)
+            if symbolLayer is not None:
+                symbol.changeSymbolLayer(0, symbolLayer)
+            category = QgsRendererCategory(unique_id, symbol, str(unique_id))
+            categories.append(category)
+
+            renderer = QgsCategorizedSymbolRenderer(id_attr, categories)
+            # assign the created renderer to the layer
+            if renderer is not None:
+                r_layer.setRenderer(renderer)
+            r_layer.triggerRepaint()
 
     # def run_importRunline(self):
     #     print("Running Runline import")
@@ -776,16 +860,51 @@ class iSurveyTools:
                         os.makedirs('C:\\temp\\')
                     name_csv = 'C:\\temp\\temp_RPL_table.csv'
                     df_rpl.to_csv(name_csv, index=False)
-                    #df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
                     path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing", str(epsg_code))
-                    #path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
-                    #path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
-                    # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
                     print("Path: " + path)
                     mylayer = QgsVectorLayer(path, "MF Runline", "delimitedtext")
                     if not mylayer.isValid():
                         print("Layer is not valid")
                     project.addMapLayer(mylayer)
+
+                    """
+                                       Adding line feature based on the points, qgis:pointstopath
+                                       2020-02-08 kele 
+                                       """
+                    if self.dlg.cB_runline_lin.isChecked():
+                        print('Creating Runline line feature')
+                        layer = iface.activeLayer()
+                        print('Selected Layer name is {}'.format(layer.name()))
+                        alg_params = {
+                            'DATE_FORMAT': '',
+                            'INPUT': layer,
+                            'ORDER_FIELD': 'kp',
+                            'GROUP_FIELD': '',  # no grouping on runline
+                            'OUTPUT': 'TEMPORARY_OUTPUT'  # temporary layer
+                        }
+                        result = processing.run('qgis:pointstopath', alg_params)
+                        # TODO:add a tst too see if the process was a success
+                        # if not result.isValid():  -does not work as isValid does not work for dictionaries
+                        # print('processing failed')
+                        QgsProject.instance().addMapLayer(result['OUTPUT'])  # showing layer on
+                        layer = iface.activeLayer()
+                        print('success generating path from {} with the following output name: {}'.format(layer.name(),
+                                                                                                          result[
+                                                                                                              'OUTPUT'].name()))
+                        layer.setName('MF Runline_Line')  # renaming layer
+                        layer.loadNamedStyle(
+                            os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'RPL_line_direction.qml'))
+
+                        # Create different colors for categorized layers
+                        # self.create_categorized_layers(layer, "kp")
+                        """
+                        Set Visible Layers
+                        """
+                        node = QgsProject.instance().layerTreeRoot().findLayer(mylayer)
+                        if node:
+                            node.setItemVisibilityChecked(False)
+
+                    self.iface.zoomToActiveLayer()
                     QMessageBox.information(self.iface.mainWindow(),
                                          'Sucessfully Imported Runline',
                                          "Sucessfully imported Runline as layer: \n MasterFile_Runline")
@@ -804,7 +923,7 @@ class iSurveyTools:
                     name_csv = 'C:\\temp\\temp_AL_table.csv'
                     df_as_laid.to_csv(name_csv, index=False)
                     #df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
-                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
+                    path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing", str(epsg_code))
                     print("Path: " + path)
                     mylayer = QgsVectorLayer(path, "MF As-Laid", "delimitedtext")
                     if not mylayer.isValid():
@@ -838,7 +957,7 @@ class iSurveyTools:
                         print('success generating path from {} with the following output name: {}'.format(layer.name(),
                                                                                               result['OUTPUT'].name()))
                         layer = iface.activeLayer()
-                        layer.setName('MF_as-laid_lin')     # renaming layer
+                        layer.setName('MF As-Laid_Line')     # renaming layer
 
             if self.dlg.cB_capjet.isChecked():
                 print("Start Capjet Track")
@@ -855,9 +974,6 @@ class iSurveyTools:
                     df_capjet_track.to_csv(name_csv, index=False)
                     # df_rpl.to_csv("C:\\temp\\test0101.csv", index=False)
                     path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s&spatialIndex=Yes" % ("UTF-8", ",", "easting", "northing",str(epsg_code))
-                    # path = "file:///" + name_csv + "?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no"
-                    # path = "file:///" + name_csv + "?encoding=%s&delimiter=%s&xField=%s&yField=%s&crs=%s" % ("UTF-8", ",", "easting", "northing", "epsg:4326")
-                    # ?type=csv&detectTypes=yes&decimalPoint=,&xField=easting&yField=northing&crs=EPSG:23031&spatialIndex=no&subsetIndex=no&watchFile=no
                     print("Path: " + path)
                     mylayer = QgsVectorLayer(path, "MF Trencher Track", "delimitedtext")
                     if not mylayer.isValid():
@@ -888,10 +1004,12 @@ class iSurveyTools:
                         layer = iface.activeLayer()
                         print('success generating path from {} with the following output name: {}'.format(layer.name(),
                                                                                               result['OUTPUT'].name()))
-                        layer = iface.activeLayer()
                         layer.setName('MF Trencher Track_Line')     # renaming layer
                         layer.loadNamedStyle(
                             os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'TID_trenched.qml'))
+
+                        # Create different colors for categorized layers
+                        self.create_categorized_layers(layer, "trenching_id")
                         """
                         Set Visible Layers
                         """
@@ -922,9 +1040,6 @@ class iSurveyTools:
                     if not mylayer.isValid():
                         print("Layer is not valid")
                     project.addMapLayer(mylayer)
-                    QMessageBox.information(self.iface.mainWindow(),
-                                         'Sucessfully Imported As-Trenched Pipe Pos',
-                                         "Sucessfully imported As-Trenched Pipe Pos as layer: \n MasterFile As-Trenched Pipe Pos")
 
                     """
                     Adding line feature based on the points, qgis:pointstopath
@@ -948,7 +1063,23 @@ class iSurveyTools:
                         print('success generating path from {} with the following output name: {}'.format(layer.name(),
                                                                                               result['OUTPUT'].name()))
                         layer = iface.activeLayer()
-                        layer.setName('MF AT-X_Line')     # renaming layer
+                        layer.setName('MF AT-X Pipe Pos_Line')     # renaming layer
+                        layer.loadNamedStyle(
+                            os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'SID_as-trenched.qml'))
+
+                        # Create different colors for categorized layers
+                        self.create_categorized_layers(layer, "sid_id")
+                        """
+                        Set Visible Layers
+                        """
+                        node = QgsProject.instance().layerTreeRoot().findLayer(mylayer)
+                        if node:
+                            node.setItemVisibilityChecked(False)
+                        self.iface.zoomToActiveLayer()
+
+                    QMessageBox.information(self.iface.mainWindow(),
+                                            'Sucessfully Imported As-Trenched Pipe Pos',
+                                            "Sucessfully imported As-Trenched Pipe Pos as layer: \n MasterFile As-Trenched Pipe Pos")
 
             if self.dlg.cB_events.isChecked():
                 print("Start Importing Events")

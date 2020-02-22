@@ -200,7 +200,7 @@
      <item row="0" column="1">
       <widget class="QCheckBox" name="cB_runline_lin">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="text">
         <string>create vector line feature</string>
