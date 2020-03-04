@@ -406,17 +406,28 @@ class iSurveyTools:
             #Get EIVA file from GUI
             eiva_file = self.eiva_dlg.path_eiva_file.value()
             filename, file_extension = os.path.splitext(eiva_file)
-            #basename = os.path.basename(runline_file)
-            #self.runline_dlg.layer_name.setValue(basename)
+            # basename = os.path.basename(runline_file)
+            # self.runline_dlg.layer_name.setValue(basename)
             if not os.path.exists(eiva_file):
                 QMessageBox.critical(self.iface.mainWindow(),
                                      'Read EIVA file',
                                      "Could not find EIVA file. File does not exist?\nExiting...")
                 return
             if file_extension == '.rln':
-                print("Importing RLN file")
-                df_runline = pd.read_csv(eiva_file, sep=';', skiprows=2, header=None)
-                df_runline.columns = ['eastings', 'northings']
+                with open(eiva_file, "r") as myfile:
+                    head = [next(myfile) for x in range(2)]
+                # print(head[0][0])
+                # print(head[1][0])
+                myfile.close()
+                n_skiprows = 0
+                if head[0][0] == '#' or head[0][0] == '"':
+                    n_skiprows = n_skiprows + 1
+                if head[1][0] == '#' or head[1][0] == '"':
+                    n_skiprows = n_skiprows + 1
+                print("Runline Header:" + str(head) + ". Skipping first " + str(n_skiprows) + " row(s)")
+                df_runline = pd.read_csv(eiva_file, sep=' |;', skiprows=n_skiprows, names=['eastings', 'northings', 'kp'], engine='python')
+
+                # df_runline.columns = ['eastings', 'northings']
                 # print(df_runline.head())
                 # Point list for the runline
                 PointList = []
@@ -437,6 +448,7 @@ class iSurveyTools:
                 #pr.addAttributes([QgsField("Index", QVariant.Int)])
                 pr.addAttributes([QgsField("Eastings", QVariant.Double)])
                 pr.addAttributes([QgsField("Northings", QVariant.Double)])
+                pr.addAttributes([QgsField("From RLN [KP]", QVariant.Double)])
                 pr.addAttributes([QgsField("SegmentLength[m]", QVariant.Double)])
                 pr.addAttributes([QgsField("RunlineLength[KP]", QVariant.Double)])
                 rpl_points_layer.updateFields()
@@ -454,7 +466,7 @@ class iSurveyTools:
                         point_dist.append(PointList[index].distance(PointList[index-1]))
                         point_dist_tot.append(point_dist_tot[index - 1] + PointList[index].distance(PointList[index - 1]))
 
-                    point_feature.setAttributes([index, float(row['eastings']), float(row['northings']), point_dist[index], point_dist_tot[index]/1000])
+                    point_feature.setAttributes([index, float(row['eastings']), float(row['northings']), float(row['kp']), point_dist[index], point_dist_tot[index]/1000])
                     point_feature.setGeometry(QgsGeometry.fromPointXY(runline_points))
                     #point_feature.setAttributes(["test"])
                     pr.addFeatures([point_feature])
