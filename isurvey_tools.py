@@ -375,6 +375,136 @@ class iSurveyTools:
                 except:
                     print("Unexpected error Trying to SELECT DISTINCT sid_id and tid_id:" + str(sys.exc_info()[0]))
 
+    def add_runline_to_proj(self, df_runline, epsg_code, runline_name):
+        # df_runline.columns = ['eastings', 'northings']
+        # print(df_runline.head())
+        # Point list for the runline
+        PointList = []
+        point_dist = []
+        point_dist_tot = []
+        # Point Layer for Runline
+        # param1 = 'Point?crs=' + str(crsId) + "&field=id:integer&field1=id2:str&field2=text2:str&field3=text3:str&field4=text4:str&text5=id5:str&index=yes"
+        param1 = "Point?crs=%s&field=id:integer&index=yes" % (str(epsg_code))
+        rpl_points_layer = self.iface.addVectorLayer(param1, str(runline_name) + '_Points',
+                                                     'memory')
+
+        # fields = rpl_points_layer.pendingFields()
+        # Point feature for runline
+        point_feature = QgsFeature()
+
+        pr = rpl_points_layer.dataProvider()
+        print(pr.fields().count())
+        rpl_points_layer.startEditing()
+        # pr.addAttributes([QgsField("Index", QVariant.Int)])
+        pr.addAttributes([QgsField("Eastings", QVariant.Double)])
+        pr.addAttributes([QgsField("Northings", QVariant.Double)])
+        pr.addAttributes([QgsField("From RLN [KP]", QVariant.Double)])
+        pr.addAttributes([QgsField("SegmentLength[m]", QVariant.Double)])
+        pr.addAttributes([QgsField("RunlineLength[KP]", QVariant.Double)])
+        rpl_points_layer.updateFields()
+        print(pr.fields().count())
+        # point_feature.setAttributes([1])
+
+        for index, row in df_runline.iterrows():
+            runline_points = QgsPointXY(float(row['eastings']), float(row['northings']))
+
+            PointList.append(runline_points)
+            if index == 0:
+                point_dist.append(0)
+                point_dist_tot.append(0)
+            else:
+                point_dist.append(PointList[index].distance(PointList[index - 1]))
+                point_dist_tot.append(point_dist_tot[index - 1] + PointList[index].distance(PointList[index - 1]))
+
+            point_feature.setAttributes(
+                [index, float(row['eastings']), float(row['northings']), float(row['kp']), point_dist[index],
+                 point_dist_tot[index] / 1000])
+            point_feature.setGeometry(QgsGeometry.fromPointXY(runline_points))
+            # point_feature.setAttributes(["test"])
+            pr.addFeatures([point_feature])
+            # point_feature.setAttribute(1, "text1")
+
+        # Specify the geometry type
+        rpl_points_layer.updateExtents()
+        rpl_points_layer.commitChanges()
+
+        # pr.addFeatures([point_feature])
+        rpl_line_layer = self.iface.addVectorLayer("LineString?crs=" + str(epsg_code) + "&field=id:integer&index=yes",
+                                                   str(runline_name) + "_Line", "memory")
+        rpl_line_layer.startEditing()
+        feature = QgsFeature()
+        feature.setGeometry(QgsGeometry.fromPolylineXY(PointList))
+        feature.setAttributes([1])
+        rpl_line_layer.addFeature(feature)
+        rpl_line_layer.loadNamedStyle(
+            os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'RPL_line_direction.qml'))
+        rpl_line_layer.commitChanges()
+
+        """
+        Use QChainage to get KP values every 500m
+        """
+        kp_layer_name = runline_name + "_KP_Points"
+        chainagetool.points_along_line(layerout=kp_layer_name,
+                                       startpoint=0,
+                                       endpoint=False,
+                                       distance=500,
+                                       label="test",
+                                       layer=rpl_line_layer,
+                                       selected_only=False,
+                                       force=True,
+                                       fo_fila=False,
+                                       divide=0,
+                                       decimal=2)
+
+        rpl_kp_pnt_layer = iface.activeLayer()
+
+        # Configure label settings 1
+        settings = QgsPalLayerSettings()
+        settings.fieldName = "concat('KP:' + format_number(cngmeters/1000, 3))"
+        settings.isExpression = True
+        textFormat = QgsTextFormat()
+        textFormat.setSize(10)
+        settings.setFormat(textFormat)
+        # create and append a new rule
+        root = QgsRuleBasedLabeling.Rule(QgsPalLayerSettings())
+        rule = QgsRuleBasedLabeling.Rule(settings, maximumScale=1, minimumScale=1000000)
+        rule.setDescription('KP5')
+        rule.setFilterExpression('cngmeters % 5000 = 0')
+        rule2 = QgsRuleBasedLabeling.Rule(settings, maximumScale=1, minimumScale=50000)
+        rule2.setDescription('KP05')
+        rule2.setFilterExpression('cngmeters % 500 = 0')
+
+        root.appendChild(rule)
+        root.appendChild(rule2)
+
+        # Apply label configuration
+        rules = QgsRuleBasedLabeling(root)
+        # rpl_kp_pnt_layer.setCustomProperty("labeling/enabled", "true")
+        rpl_kp_pnt_layer.setLabeling(rules)
+        rpl_kp_pnt_layer.triggerRepaint()
+        # Apply label configuration
+        rpl_kp_pnt_layer.setLabelsEnabled(True)
+
+        rpl_kp_pnt_layer.loadNamedStyle(
+            os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'RPL_line_direction.qml'))
+
+        """
+        Set Visible Layers
+        """
+        node = QgsProject.instance().layerTreeRoot().findLayer(rpl_points_layer)
+        if node:
+            node.setItemVisibilityChecked(False)
+
+        node2 = QgsProject.instance().layerTreeRoot().findLayer(kp_layer_name)
+        if node2:
+            node2.setItemVisibilityChecked(True)
+
+        node3 = QgsProject.instance().layerTreeRoot().findLayer(rpl_line_layer)
+        if node3:
+            node3.setItemVisibilityChecked(True)
+
+        print("Sucessfully added runline to proj: " + str(runline_name))
+
     def run_importEiva(self):
         print("Running EIVA import")
         """Run method that performs all the real work"""
@@ -414,144 +544,50 @@ class iSurveyTools:
                                      "Could not find EIVA file. File does not exist?\nExiting...")
                 return
             if file_extension == '.rln':
+                n_start_rows = []
+                n_end_rows = []
+                runline_name = []
                 with open(eiva_file, "r") as myfile:
-                    head = [next(myfile) for x in range(2)]
-                # print(head[0][0])
-                # print(head[1][0])
+                    for cnt, line in enumerate(myfile):
+                        if cnt == 0:
+                            print("first line")
+                            first_line = line
+                        elif cnt == 1:
+                            print("second line")
+                            second_line = line
+                            if first_line[0] == '#' and second_line[0] == '"':
+                                n_start_rows.append(cnt+1)
+                                runline_name.append(line.replace('\n', '').replace('"', ''))
+                            elif first_line[0] == '#' and second_line[0] != '"':
+                                n_start_rows.append(cnt)
+                                runline_name.append(str(self.eiva_dlg.layer_name.value()))
+                                # runline_name.append(first_line.replace('\n', '').replace('"', '').replace('#', 'TimeName'))
+                            elif first_line[0] == '"':
+                                n_start_rows.append(cnt)
+                                runline_name.append(first_line.replace('\n', '').replace('"', ''))
+                            elif first_line[0] != '"' and first_line[0] != '#' and second_line[0] != '#' and second_line[0] != '"':
+                                n_start_rows.append(cnt-1)
+                                runline_name.append(str(self.eiva_dlg.layer_name.value()))
+                        else:
+                            if line[0] == '"':
+                                n_start_rows.append(cnt+1)
+                                runline_name.append(line.replace('\n', '').replace('"', ''))
+                            if line[0] == '\n':
+                                n_end_rows.append(cnt)
+
+                    n_end_rows.append(cnt+1)
+
                 myfile.close()
-                n_skiprows = 0
-                if head[0][0] == '#' or head[0][0] == '"':
-                    n_skiprows = n_skiprows + 1
-                if head[1][0] == '#' or head[1][0] == '"':
-                    n_skiprows = n_skiprows + 1
-                print("Runline Header:" + str(head) + ". Skipping first " + str(n_skiprows) + " row(s)")
-                df_runline = pd.read_csv(eiva_file, sep=' |;', skiprows=n_skiprows, names=['eastings', 'northings', 'kp'], engine='python')
+                print(n_start_rows)
+                print(n_end_rows)
+                print(str(len(runline_name)) + " Runline(s) in file")
+                print(runline_name)
 
-                # df_runline.columns = ['eastings', 'northings']
-                # print(df_runline.head())
-                # Point list for the runline
-                PointList = []
-                point_dist = []
-                point_dist_tot = []
-                # Point Layer for Runline
-                #param1 = 'Point?crs=' + str(crsId) + "&field=id:integer&field1=id2:str&field2=text2:str&field3=text3:str&field4=text4:str&text5=id5:str&index=yes"
-                param1 = "Point?crs=%s&field=id:integer&index=yes" % (str(epsg_code))
-                rpl_points_layer = self.iface.addVectorLayer(param1, str(self.eiva_dlg.layer_name.value()) + '_Points', 'memory')
-
-                #fields = rpl_points_layer.pendingFields()
-                # Point feature for runline
-                point_feature = QgsFeature()
-
-                pr = rpl_points_layer.dataProvider()
-                print(pr.fields().count())
-                rpl_points_layer.startEditing()
-                #pr.addAttributes([QgsField("Index", QVariant.Int)])
-                pr.addAttributes([QgsField("Eastings", QVariant.Double)])
-                pr.addAttributes([QgsField("Northings", QVariant.Double)])
-                pr.addAttributes([QgsField("From RLN [KP]", QVariant.Double)])
-                pr.addAttributes([QgsField("SegmentLength[m]", QVariant.Double)])
-                pr.addAttributes([QgsField("RunlineLength[KP]", QVariant.Double)])
-                rpl_points_layer.updateFields()
-                print(pr.fields().count())
-                # point_feature.setAttributes([1])
-
-                for index, row in df_runline.iterrows():
-                    runline_points = QgsPointXY(float(row['eastings']), float(row['northings']))
-
-                    PointList.append(runline_points)
-                    if index == 0:
-                        point_dist.append(0)
-                        point_dist_tot.append(0)
-                    else:
-                        point_dist.append(PointList[index].distance(PointList[index-1]))
-                        point_dist_tot.append(point_dist_tot[index - 1] + PointList[index].distance(PointList[index - 1]))
-
-                    point_feature.setAttributes([index, float(row['eastings']), float(row['northings']), float(row['kp']), point_dist[index], point_dist_tot[index]/1000])
-                    point_feature.setGeometry(QgsGeometry.fromPointXY(runline_points))
-                    #point_feature.setAttributes(["test"])
-                    pr.addFeatures([point_feature])
-                    #point_feature.setAttribute(1, "text1")
-
-                # Specify the geometry type
-                rpl_points_layer.updateExtents()
-                rpl_points_layer.commitChanges()
-
-                #pr.addFeatures([point_feature])
-                rpl_line_layer = self.iface.addVectorLayer("LineString?crs=" + str(epsg_code) + "&field=id:integer&index=yes", str(self.eiva_dlg.layer_name.value()) + "_Line", "memory")
-                rpl_line_layer.startEditing()
-                feature = QgsFeature()
-                feature.setGeometry(QgsGeometry.fromPolylineXY(PointList))
-                feature.setAttributes([1])
-                rpl_line_layer.addFeature(feature)
-                rpl_line_layer.loadNamedStyle(
-                    os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'RPL_line_direction.qml'))
-                rpl_line_layer.commitChanges()
-
-
-                """
-                Use QChainage to get KP values every 500m
-                """
-                kp_layer_name = str(self.eiva_dlg.layer_name.value()) + "_KP_Points"
-                chainagetool.points_along_line(layerout=kp_layer_name,
-                                               startpoint=0,
-                                               endpoint=False,
-                                               distance=500,
-                                               label="test",
-                                               layer=rpl_line_layer,
-                                               selected_only=False,
-                                               force=True,
-                                               fo_fila=False,
-                                               divide=0,
-                                               decimal=2)
-
-                rpl_kp_pnt_layer = iface.activeLayer()
-
-                # Configure label settings 1
-                settings = QgsPalLayerSettings()
-                settings.fieldName = "concat('KP:' + format_number(cngmeters/1000, 3))"
-                settings.isExpression = True
-                textFormat = QgsTextFormat()
-                textFormat.setSize(10)
-                settings.setFormat(textFormat)
-                # create and append a new rule
-                root = QgsRuleBasedLabeling.Rule(QgsPalLayerSettings())
-                rule = QgsRuleBasedLabeling.Rule(settings, maximumScale=1, minimumScale=1000000)
-                rule.setDescription('KP5')
-                rule.setFilterExpression('cngmeters % 5000 = 0')
-                rule2 = QgsRuleBasedLabeling.Rule(settings, maximumScale=1, minimumScale=50000)
-                rule2.setDescription('KP05')
-                rule2.setFilterExpression('cngmeters % 500 = 0')
-
-                root.appendChild(rule)
-                root.appendChild(rule2)
-
-                # Apply label configuration
-                rules = QgsRuleBasedLabeling(root)
-                # rpl_kp_pnt_layer.setCustomProperty("labeling/enabled", "true")
-                rpl_kp_pnt_layer.setLabeling(rules)
-                rpl_kp_pnt_layer.triggerRepaint()
-                # Apply label configuration
-                rpl_kp_pnt_layer.setLabelsEnabled(True)
-
-                rpl_kp_pnt_layer.loadNamedStyle(
-                    os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'RPL_line_direction.qml'))
-
-
-
-                """
-                Set Visible Layers
-                """
-                node = QgsProject.instance().layerTreeRoot().findLayer(rpl_points_layer)
-                if node:
-                    node.setItemVisibilityChecked(False)
-
-                node2 = QgsProject.instance().layerTreeRoot().findLayer(kp_layer_name)
-                if node2:
-                    node2.setItemVisibilityChecked(True)
-
-                node3 = QgsProject.instance().layerTreeRoot().findLayer(rpl_line_layer)
-                if node3:
-                    node3.setItemVisibilityChecked(True)
+                for i, run_name in enumerate(runline_name):
+                    print("Adding runline name: " + str(run_name))
+                    df_seg = pd.read_csv(eiva_file, sep=' |;', skiprows=n_start_rows[i], nrows=n_end_rows[i]-n_start_rows[i], skip_blank_lines=True, comment='#', names=['eastings', 'northings', 'kp'], engine='python')
+                    print(df_seg)
+                    self.add_runline_to_proj(df_seg, epsg_code, run_name)
 
                 self.iface.zoomToActiveLayer()
 

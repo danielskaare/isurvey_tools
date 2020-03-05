@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="71041ddf-e759-4072-a0e3-c518f4cf9993" name="Default" comment="MISC...">
+    <list default="true" id="71041ddf-e759-4072-a0e3-c518f4cf9993" name="Default" comment="Fixed Runline import so it would work for all RLN files. Related to Issue #10: &quot;import rln need to be updated&quot;">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/isurvey_tools.py" beforeDir="false" afterPath="$PROJECT_DIR$/isurvey_tools.py" afterDir="false" />
     </list>
@@ -34,9 +34,9 @@
   </component>
   <component name="PropertiesComponent">
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
-  <component name="RunManager" selected="Python.test01">
+  <component name="RunManager" selected="Python.test02">
     <configuration name="Master_file_2" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="isurvey_tools" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -79,8 +79,30 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="test02" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="isurvey_tools" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/test02.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.test02" />
         <item itemvalue="Python.test01" />
         <item itemvalue="Python.Master_file_2" />
       </list>
@@ -109,44 +131,61 @@
       <option name="presentableId" value="LOCAL−00002" />
       <updated>1582057217974</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="Fixed Runline import so it would work for all RLN files. Related to Issue #10: &quot;import rln need to be updated&quot;">
+      <created>1583360917498</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1583360917498</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="NEW: Style templates used for SID/TID, and MF Trencher Track&#10;UPDATE: EIVA Runline&#10;MISC..." />
     <MESSAGE value="MISC..." />
-    <option name="LAST_COMMIT_MESSAGE" value="MISC..." />
+    <MESSAGE value="Fixed Runline import so it would work for all RLN files. Related to Issue #10: &quot;import rln need to be updated&quot;" />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed Runline import so it would work for all RLN files. Related to Issue #10: &quot;import rln need to be updated&quot;" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="2158" y="74" width="1627" height="816" key="CommitChangelistDialog2" timestamp="1583360129094">
+    <state x="2472" y="238" key="#Notifications" timestamp="1583360960413">
       <screen x="1920" y="0" width="1920" height="1160" />
     </state>
-    <state x="2158" y="74" width="1627" height="816" key="CommitChangelistDialog2/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583360129094" />
+    <state x="2472" y="238" key="#Notifications/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583360960413" />
+    <state x="2158" y="74" width="1627" height="816" key="CommitChangelistDialog2" timestamp="1583360933702">
+      <screen x="1920" y="0" width="1920" height="1160" />
+    </state>
+    <state x="2158" y="74" width="1627" height="816" key="CommitChangelistDialog2/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583360933702" />
     <state x="2303" y="38" width="1094" height="535" key="CommitChangelistDialog2/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582057216076" />
     <state x="2360" y="256" key="CommitChangelistDialog2/0.0.1920.1160/3840.0.1920.1160/1920.0.1920.1160@0.0.1920.1160" timestamp="1582363671385" />
     <state x="2660" y="335" key="FileChooserDialogImpl" timestamp="1582039666887">
       <screen x="1920" y="0" width="1920" height="1160" />
     </state>
     <state x="2660" y="335" key="FileChooserDialogImpl/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582039666887" />
-    <state width="1899" height="321" key="GridCell.Tab.0.bottom" timestamp="1583358243905">
+    <state width="1899" height="321" key="GridCell.Tab.0.bottom" timestamp="1583395662924">
       <screen x="1920" y="0" width="1920" height="1160" />
     </state>
-    <state width="1899" height="321" key="GridCell.Tab.0.bottom/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583358243905" />
-    <state width="1899" height="321" key="GridCell.Tab.0.center" timestamp="1583358243905">
+    <state width="1899" height="321" key="GridCell.Tab.0.bottom/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583363159102" />
+    <state width="1899" height="321" key="GridCell.Tab.0.bottom/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@1920.0.1920.1160" timestamp="1583395662924" />
+    <state width="1899" height="321" key="GridCell.Tab.0.center" timestamp="1583395662924">
       <screen x="1920" y="0" width="1920" height="1160" />
     </state>
-    <state width="1899" height="321" key="GridCell.Tab.0.center/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583358243905" />
-    <state width="1899" height="321" key="GridCell.Tab.0.left" timestamp="1583358243905">
+    <state width="1899" height="321" key="GridCell.Tab.0.center/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583363159102" />
+    <state width="1899" height="321" key="GridCell.Tab.0.center/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@1920.0.1920.1160" timestamp="1583395662924" />
+    <state width="1899" height="321" key="GridCell.Tab.0.left" timestamp="1583395662924">
       <screen x="1920" y="0" width="1920" height="1160" />
     </state>
-    <state width="1899" height="321" key="GridCell.Tab.0.left/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583358243905" />
-    <state width="1899" height="321" key="GridCell.Tab.0.right" timestamp="1583358243905">
+    <state width="1899" height="321" key="GridCell.Tab.0.left/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583363159102" />
+    <state width="1899" height="321" key="GridCell.Tab.0.left/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@1920.0.1920.1160" timestamp="1583395662924" />
+    <state width="1899" height="321" key="GridCell.Tab.0.right" timestamp="1583395662924">
       <screen x="1920" y="0" width="1920" height="1160" />
     </state>
-    <state width="1899" height="321" key="GridCell.Tab.0.right/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583358243905" />
-    <state x="461" y="222" key="SettingsEditor" timestamp="1582362863798">
-      <screen x="0" y="0" width="1920" height="1160" />
+    <state width="1899" height="321" key="GridCell.Tab.0.right/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583363159102" />
+    <state width="1899" height="321" key="GridCell.Tab.0.right/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@1920.0.1920.1160" timestamp="1583395662924" />
+    <state x="2381" y="222" key="SettingsEditor" timestamp="1583362758811">
+      <screen x="1920" y="0" width="1920" height="1160" />
     </state>
+    <state x="2381" y="222" key="SettingsEditor/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583362758811" />
     <state x="2381" y="222" key="SettingsEditor/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582040111579" />
     <state x="461" y="222" key="SettingsEditor/0.0.1920.1160/3840.0.1920.1160/1920.0.1920.1160@0.0.1920.1160" timestamp="1582362863798" />
     <state x="2333" y="109" width="1298" height="721" key="Vcs.Push.Dialog.v2" timestamp="1582363495062">
@@ -172,13 +211,18 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/isurvey_tools.py</url>
-          <line>825</line>
+          <line>861</line>
           <option name="timeStamp" value="3" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/isurvey_tools.py</url>
-          <line>377</line>
+          <line>507</line>
           <option name="timeStamp" value="4" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/isurvey_tools.py</url>
+          <line>297</line>
+          <option name="timeStamp" value="5" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
