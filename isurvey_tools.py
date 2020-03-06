@@ -31,7 +31,7 @@ from qgis.utils import iface # 2020-02-09 kele
 
 import sqlite3, sys
 import pandas as pd
-from qgis.core import QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer
+from qgis.core import QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
 from urllib.request import pathname2url
 from os import path
 from pathlib import Path
@@ -223,7 +223,7 @@ class iSurveyTools:
 
     def openSelectDB(self):
         # dbFile,_ = QFileDialog.getOpenFileName(self, 'Open DB file', 'c:\\', "SQL Lite DB (*.db *.db3)")
-        dbFile,_ = QFileDialog.getOpenFileName()
+        dbFile,_ = QFileDialog.getOpenFileName(self.dlg, "Open Masterfile", "", "SQLite (*.sqlite *.sqlite3);;SQLite DB (*.db *.db3);;All Files (*)")
         if dbFile:
             self.dlg.line_db_path.setText(os.path.abspath(dbFile))
             self.populate_tid_and_sid_list()
@@ -393,7 +393,7 @@ class iSurveyTools:
         point_feature = QgsFeature()
 
         pr = rpl_points_layer.dataProvider()
-        print(pr.fields().count())
+        # print(pr.fields().count())
         rpl_points_layer.startEditing()
         # pr.addAttributes([QgsField("Index", QVariant.Int)])
         pr.addAttributes([QgsField("Eastings", QVariant.Double)])
@@ -402,7 +402,7 @@ class iSurveyTools:
         pr.addAttributes([QgsField("SegmentLength[m]", QVariant.Double)])
         pr.addAttributes([QgsField("RunlineLength[KP]", QVariant.Double)])
         rpl_points_layer.updateFields()
-        print(pr.fields().count())
+        # print(pr.fields().count())
         # point_feature.setAttributes([1])
 
         for index, row in df_runline.iterrows():
@@ -505,6 +505,190 @@ class iSurveyTools:
 
         print("Sucessfully added runline to proj: " + str(runline_name))
 
+    def add_etr_track_to_proj(self, df, epsg_code, track_name):
+        PointList = []
+        point_dist = []
+        point_dist_tot = []
+
+        # Original Point Layer
+        param1 = "Point?crs=%s&field=id:integer&index=yes" % (str(epsg_code))
+        original_points_layer = self.iface.addVectorLayer(param1, str(track_name) + '_Points',
+                                                     'memory')
+
+        # Point feature for Original Point Layer
+        point_feature = QgsFeature()
+
+        pr = original_points_layer.dataProvider()
+        original_points_layer.startEditing()
+        pr.addAttributes([QgsField("Date[DD-MM-YY]", QVariant.String)])
+        pr.addAttributes([QgsField("Time[HH:MM:SS.sss]", QVariant.String)])
+        pr.addAttributes([QgsField("Eastings", QVariant.Double)])
+        pr.addAttributes([QgsField("Northings", QVariant.Double)])
+        pr.addAttributes([QgsField("WaterDepth[m]", QVariant.Double)])
+        pr.addAttributes([QgsField("Roll[Deg]", QVariant.Double)])
+        pr.addAttributes([QgsField("Pitch[Deg]", QVariant.Double)])
+        pr.addAttributes([QgsField("Heading[Deg]", QVariant.Double)])
+        pr.addAttributes([QgsField("Tide[m]", QVariant.Double)])
+        original_points_layer.updateFields()
+
+        for index, row in df.iterrows():
+            runline_points = QgsPointXY(float(row['Easting']), float(row['Northing']))
+
+            # If calculations is needed
+            PointList.append(runline_points)
+            if index == 0:
+                point_dist.append(0)
+                point_dist_tot.append(0)
+            else:
+                point_dist.append(PointList[index].distance(PointList[index - 1]))
+                point_dist_tot.append(point_dist_tot[index - 1] + PointList[index].distance(PointList[index - 1]))
+
+            point_feature.setAttributes(
+                [index, row['Date'], row['Time'], float(row['Easting']), float(row['Northing']), float(row['WaterDepth']), float(row['Roll']), float(row['Pitch']), float(row['Heading']), float(row['Tide'])])
+            point_feature.setGeometry(QgsGeometry.fromPointXY(runline_points))
+            pr.addFeatures([point_feature])
+
+        # Update project
+        original_points_layer.updateExtents()
+        original_points_layer.commitChanges()
+
+        original_line_layer = self.iface.addVectorLayer("LineString?crs=" + str(epsg_code) + "&field=id:integer&index=yes",
+                                                   str(track_name) + "_Line", "memory")
+        original_line_layer.startEditing()
+
+        # Additional Feature for Line
+        feature = QgsFeature()
+        feature.setGeometry(QgsGeometry.fromPolylineXY(PointList))
+        feature.setAttributes([1])
+        original_line_layer.addFeature(feature)
+        original_line_layer.loadNamedStyle(
+            os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'SID_as-trenched.qml'))
+        original_line_layer.commitChanges()
+
+        # """
+        # Use QChainage to get KP values every 500m
+        # """
+        # kp_layer_name = runline_name + "_KP_Points"
+        # chainagetool.points_along_line(layerout=kp_layer_name,
+        #                                startpoint=0,
+        #                                endpoint=False,
+        #                                distance=500,
+        #                                label="test",
+        #                                layer=rpl_line_layer,
+        #                                selected_only=False,
+        #                                force=True,
+        #                                fo_fila=False,
+        #                                divide=0,
+        #                                decimal=2)
+        #
+        # rpl_kp_pnt_layer = iface.activeLayer()
+        #
+        # # Configure label settings 1
+        # settings = QgsPalLayerSettings()
+        # settings.fieldName = "concat('KP:' + format_number(cngmeters/1000, 3))"
+        # settings.isExpression = True
+        # textFormat = QgsTextFormat()
+        # textFormat.setSize(10)
+        # settings.setFormat(textFormat)
+        # # create and append a new rule
+        # root = QgsRuleBasedLabeling.Rule(QgsPalLayerSettings())
+        # rule = QgsRuleBasedLabeling.Rule(settings, maximumScale=1, minimumScale=1000000)
+        # rule.setDescription('KP5')
+        # rule.setFilterExpression('cngmeters % 5000 = 0')
+        # rule2 = QgsRuleBasedLabeling.Rule(settings, maximumScale=1, minimumScale=50000)
+        # rule2.setDescription('KP05')
+        # rule2.setFilterExpression('cngmeters % 500 = 0')
+        #
+        # root.appendChild(rule)
+        # root.appendChild(rule2)
+        #
+        # # Apply label configuration
+        # rules = QgsRuleBasedLabeling(root)
+        # # rpl_kp_pnt_layer.setCustomProperty("labeling/enabled", "true")
+        # rpl_kp_pnt_layer.setLabeling(rules)
+        # rpl_kp_pnt_layer.triggerRepaint()
+        # # Apply label configuration
+        # rpl_kp_pnt_layer.setLabelsEnabled(True)
+        #
+        # rpl_kp_pnt_layer.loadNamedStyle(
+        #     os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'RPL_line_direction.qml'))
+        #
+        """
+        Set Visible Layers
+        """
+        node = QgsProject.instance().layerTreeRoot().findLayer(original_points_layer)
+        if node:
+            node.setItemVisibilityChecked(False)
+
+        node2 = QgsProject.instance().layerTreeRoot().findLayer(original_line_layer)
+        if node2:
+            node2.setItemVisibilityChecked(True)
+
+        print("Sucessfully added Eiva ETR Track to proj: " + str(track_name))
+
+    def add_waypoints_to_proj(self, df, epsg_code, name):
+        PointList = []
+        point_dist = []
+        point_dist_tot = []
+
+        # Original Point Layer
+        param1 = "Point?crs=%s&field=id:integer&index=yes" % (str(epsg_code))
+        original_points_layer = self.iface.addVectorLayer(param1, str(name) + '_Points',
+                                                     'memory')
+
+        # Point feature for Original Point Layer
+        point_feature = QgsFeature()
+
+        pr = original_points_layer.dataProvider()
+        original_points_layer.startEditing()
+        cnt = 0
+        for col in df.columns:
+            if cnt == (0 or 7 or 10 or 12):
+                pr.addAttributes([QgsField(str(col), QVariant.String)])
+            else:
+                pr.addAttributes([QgsField(str(col), QVariant.Double)])
+            cnt = cnt + 1
+        original_points_layer.updateFields()
+
+        for index, row in df.iterrows():
+            position_points = QgsPointXY(float(row['Easting']), float(row['Northing']))
+
+            PointList.append(position_points)
+            if index == 0:
+                point_dist.append(0)
+                point_dist_tot.append(0)
+            else:
+                point_dist.append(PointList[index].distance(PointList[index - 1]))
+                point_dist_tot.append(point_dist_tot[index - 1] + PointList[index].distance(PointList[index - 1]))
+
+            attributes_list = row.tolist()
+            attributes_list.insert(0, index)
+            point_feature.setAttributes(attributes_list)
+
+            point_feature.setGeometry(QgsGeometry.fromPointXY(position_points))
+            pr.addFeatures([point_feature])
+
+        # Update project
+        original_points_layer.updateExtents()
+        original_points_layer.commitChanges()
+
+        # Add single labels
+        pal_layer = QgsPalLayerSettings()
+        pal_layer.fieldName = 'Name'
+        pal_layer.enabled = True
+        pal_layer.placement = QgsPalLayerSettings.Line
+        labels = QgsVectorLayerSimpleLabeling(pal_layer)
+        original_points_layer.setLabeling(labels)
+        original_points_layer.setLabelsEnabled(True)
+        original_points_layer.triggerRepaint()
+
+        """
+        Set Visible Layers
+        """
+        node = QgsProject.instance().layerTreeRoot().findLayer(original_points_layer)
+        if node:
+            node.setItemVisibilityChecked(True)
+
     def run_importEiva(self):
         print("Running EIVA import")
         """Run method that performs all the real work"""
@@ -543,17 +727,17 @@ class iSurveyTools:
                                      'Read EIVA file',
                                      "Could not find EIVA file. File does not exist?\nExiting...")
                 return
-            if file_extension == '.rln':
+            if file_extension == '.rln' or file_extension == '.RLN' or file_extension == '.rlx' or file_extension == '.RLX':
                 n_start_rows = []
                 n_end_rows = []
                 runline_name = []
                 with open(eiva_file, "r") as myfile:
                     for cnt, line in enumerate(myfile):
                         if cnt == 0:
-                            print("first line")
+                            # print("first line")
                             first_line = line
                         elif cnt == 1:
-                            print("second line")
+                            # print("second line")
                             second_line = line
                             if first_line[0] == '#' and second_line[0] == '"':
                                 n_start_rows.append(cnt+1)
@@ -578,16 +762,28 @@ class iSurveyTools:
                     n_end_rows.append(cnt+1)
 
                 myfile.close()
-                print(n_start_rows)
-                print(n_end_rows)
-                print(str(len(runline_name)) + " Runline(s) in file")
-                print(runline_name)
+                # print(n_start_rows)
+                # print(n_end_rows)
+                # print(str(len(runline_name)) + " Runline(s) in file")
+                # print(runline_name)
 
-                for i, run_name in enumerate(runline_name):
-                    print("Adding runline name: " + str(run_name))
-                    df_seg = pd.read_csv(eiva_file, sep=' |;', skiprows=n_start_rows[i], nrows=n_end_rows[i]-n_start_rows[i], skip_blank_lines=True, comment='#', names=['eastings', 'northings', 'kp'], engine='python')
-                    print(df_seg)
-                    self.add_runline_to_proj(df_seg, epsg_code, run_name)
+                if file_extension == '.rln' or file_extension == '.RLN':
+                    for i, run_name in enumerate(runline_name):
+                        print("Adding runline name: " + str(run_name))
+                        df_seg = pd.read_csv(eiva_file, sep=' |;', skiprows=n_start_rows[i], nrows=n_end_rows[i]-n_start_rows[i], skip_blank_lines=True, comment='#', names=['eastings', 'northings', 'kp'], engine='python')
+                        # print(df_seg)
+                        self.add_runline_to_proj(df_seg, epsg_code, run_name)
+
+                elif file_extension == '.rlx' or file_extension == '.RLX':
+                    """For RLX files remove extra columns in name"""
+                    runline_name = [w.split(';', 1)[0] for w in runline_name]
+
+                    for i, run_name in enumerate(runline_name):
+                        print("Adding runline name: " + str(run_name))
+                        # TODO: Might change RLX import to read in all information like eastings/northings end, kp end, and param 1-3
+                        df_seg = pd.read_csv(eiva_file, sep=';', skiprows=n_start_rows[i], nrows=n_end_rows[i]-n_start_rows[i], skip_blank_lines=True, comment='#', names=['eastings', 'northings', 'eastings_end', 'northings_end','kp','kp_end', 'param1', 'param2', 'param3'], engine='python')
+                        # print(df_seg)
+                        self.add_runline_to_proj(df_seg, epsg_code, run_name)
 
                 self.iface.zoomToActiveLayer()
 
@@ -604,71 +800,31 @@ class iSurveyTools:
                 # vectorLyr.updateExtents()
 
 
-                print("Finished Loading RLN file")
-            # elif file_extension == '.rlx':
-            #     print("Importing RLX file")
-            #
-            elif file_extension == '.etr':
+                print("Finished Loading Runline file")
+
+            elif file_extension == '.etr' or file_extension == '.ETR':
                 print("Importing ETR file")
-                df_etr = pd.read_csv(eiva_file, sep=' ')
-                #df_etr.columns = ['eastings', 'northings']
-                #print(df_etr.head())
-                #print(df_etr.columns)
-                etr_layer = QgsVectorLayer("LineString?crs=%s" % (str(epsg_code)), str(self.eiva_dlg.layer_name.value()) + '_LineTest', "memory")
-
-                pr = etr_layer.dataProvider()
-
-                attrib_list = []
-
-                for i in list(df_etr):
-                    attrib_list.append(QgsField(i, QVariant.String))
-
-                pr.addAttributes(attrib_list)
-                etr_layer.updateFields()
-
-                # Add the layer in QGIS project
-                QgsProject.instance().addMapLayer(etr_layer)
-
-                # Start editing layer
-
-                etr_layer.startEditing()
-                feat = QgsFeature(etr_layer.fields())  # Create the feature
-
-                point_list = []
-                attribute_list = []
-
-                for index, row in df_etr.iterrows():
-                    positions = QgsPoint(float(row['Easting']), float(row['Northing']))
-                    point_list.append(positions)
-                    #feat.setAttribute("Date", row['Date'])  # set attributes
-                    #feat.setAttribute("Time", row['Time'])
-                print(point_list)
-
-                linea = iface.addVectorLayer("LineString?crs=epsg:4326&field=id:integer&index=yes", "Linea", "memory")
-                linea.startEditing()
-                feature = QgsFeature()
-                feature.setGeometry(QgsGeometry.fromPolyline(point_list))
-                feature.setAttributes([1])
-                linea.addFeature(feature, True)
-                linea.commitChanges()
-                iface.zoomToActiveLayer()
-                # # Create HERE the line you want with the 2 xy coordinates
-                # feat.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(12, 12),
-                #                                              QgsPointXY(300, 300)]))
-                #
-                # etr_layer.addFeature(feat)  # add the feature to the layer
-                # etr_layer.endEditCommand()  # Stop editing
-                # etr_layer.commitChanges()  # Save changes
-                #
-                # self.iface.zoomToActiveLayer()
+                df_etr = pd.read_csv(eiva_file, sep=' ', skip_blank_lines=True, comment='#', header=0, engine='python')
+                self.add_etr_track_to_proj(df_etr, epsg_code, str(self.eiva_dlg.layer_name.value()))
                 print("Finished importing ETR file")
 
+            elif file_extension == ('.wpt' or '.WPT'):
+                print("Importing WPT file")
+                df = pd.read_csv(eiva_file, sep=',', skip_blank_lines=True, comment='#', names=['Name', 'Easting', 'Northing', 'Depth'], engine='python')
+                self.add_waypoints_to_proj(df, epsg_code, str(self.eiva_dlg.layer_name.value()))
+                print("Finished importing ETR file")
+
+            elif file_extension == ('.wp2' or '.WP2'):
+                print("Importing WP2 file")
+                df = pd.read_csv(eiva_file, sep=';', skip_blank_lines=True, comment='#', names=['Name', 'Easting', 'Northing', 'Depth', 'param1', 'param2', 'param3', 'param4', 'param5', 'param6', 'param7', 'param8', 'param9', 'param10', 'param11', 'param12', 'param13', 'param14', 'param15'], engine='python')
+                self.add_waypoints_to_proj(df, epsg_code, str(self.eiva_dlg.layer_name.value()))
+                print("Finished importing ETR file")
 
             # elif file_extension == '.wp2':
             #     print("Importing wp2 file")
 
             else:
-                err_text = "File Format: " + str(file_extension) +  " is NOT supported. CURRENTLY SUPPORTED FORMATS: RLN\nExiting..."
+                err_text = "File Format: " + str(file_extension) +  " is NOT supported. CURRENTLY SUPPORTED FORMATS: RLN, RLX, ETR, WP2 and WPT \nExiting..."
                 print(err_text)
                 QMessageBox.critical(self.iface.mainWindow(),
                                      'Read EIVA file',
