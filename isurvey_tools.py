@@ -21,27 +21,33 @@
  *                                                                         *
  ***************************************************************************/
 """
+import os.path
+import sqlite3
+import sys
+from os import path
+from random import randrange
+from urllib.request import pathname2url
+
+import numpy as np
+import pandas as pd
+import processing  # make it possible to use the processing toolbox functions like "point to path"
+from PyQt5.QtWidgets import QAction, QMessageBox, QFileDialog
+from qchainage import chainagetool
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
-from qgis.utils import iface # 2020-02-09 kele
+from qgis.core import QgsVectorLayer, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, \
+    QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, \
+    QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
+from qgis.utils import iface  # 2020-02-09 kele
+
+# Initialize Qt resources from file resources.py
+# Import the code for the dialog
+from .isurvey_tools_dialog import iSurveyToolsDialog, loadEivaDialog
+
 
 # Import necessary geometric objects from shapely module
-#from shapely.geometry import Point, LineString
-
-import sqlite3, sys
-import pandas as pd
-from qgis.core import QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
-from urllib.request import pathname2url
-from os import path
-from pathlib import Path
-from qchainage import chainagetool
-from random import randrange
-
-import processing   # make it possible to use the processing toolbox functions like "point to path"
-import requests
-
-from PyQt5.QtWidgets import QAction, QMessageBox, QFileDialog
+# from shapely.geometry import Point, LineString
 # from qgis.core import (QgsCoordinateReferenceSystem,
 #                        QgsCoordinateTransform,
 #                        QgsProject,
@@ -50,12 +56,6 @@ from PyQt5.QtWidgets import QAction, QMessageBox, QFileDialog
 #                        QgsGeometry,
 #                        QgsVectorLayer,
 #                        QgsFeature)
-
-# Initialize Qt resources from file resources.py
-from .resources import *
-# Import the code for the dialog
-from .isurvey_tools_dialog import iSurveyToolsDialog, loadEivaDialog
-import os.path
 
 class iSurveyTools:
     """QGIS Plugin Implementation."""
@@ -119,6 +119,7 @@ class iSurveyTools:
         status_tip=None,
         whats_this=None,
         parent=None):
+
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -230,16 +231,18 @@ class iSurveyTools:
 
     def open_select_eiva(self):
         File,_ = QFileDialog.getOpenFileName(self.eiva_dlg, "Open EIVA files", "", "Runlines (*.rln *.rlx);;Track (*.etr);;Waypoints (*.wpt *.wp2);;All Files (*)")
+        # self.eiva_dlg
         if File:
             self.eiva_dlg.path_eiva_file.setText(os.path.abspath(File))
             basename = os.path.basename(os.path.abspath(File))
             # Set filename to Layername in GUI
             self.eiva_dlg.layer_name.setValue(basename)
 
-    # def open_select_etr(self):
-    #     File,_ = QFileDialog.getOpenFileName()
-    #     if File:
-    #         self.track_dlg.path_etr.setText(os.path.abspath(File))
+    def close_master_file_connect_signals(self):
+        self.dlg.pB_Browse.clicked.disconnect(self.openSelectDB)
+        self.dlg.pB_Validate.clicked.disconnect(self.validateMasterfile)
+        self.dlg.pB_Refresh_tid_sid.clicked.disconnect(self.populate_tid_and_sid_list)
+        self.dlg.cB_EPSG.clicked.disconnect(self.handle_QGIS_Project_EPSG)
 
     def handle_QGIS_Project_EPSG(self):
         if self.dlg.cB_EPSG.isChecked():
@@ -274,7 +277,7 @@ class iSurveyTools:
                 print(err2)
             if conn is None:
                 print("Error! cannot create the database connection.")
-                QMessageBox.critical(self.iface.mainWindow(),
+                QMessageBox.critical(self.dlg,
                                      'Import Masterfile error',
                                      "Cant't connect to Masterfile. Is some other program connected to it and blocking it?\nExiting...")
             return conn
@@ -286,7 +289,7 @@ class iSurveyTools:
         print("You pushed Validate Masterfile button")
         conn = self.initDBConnection()
         if conn is None:
-            QMessageBox.critical(self.iface.mainWindow(),
+            QMessageBox.critical(self.dlg,
                                  'Select Masterfile ',
                                  "You have not selected a valid Masterfile Database, please do so.\nExiting...")
         else:
@@ -347,7 +350,7 @@ class iSurveyTools:
     def populate_tid_and_sid_list(self):
         conn = self.initDBConnection()
         if conn is None:
-            QMessageBox.critical(self.iface.mainWindow(),
+            QMessageBox.critical(self.dlg,
                                  'Select Masterfile ',
                                  "You have not selected a valid Masterfile Database, please do so.\nExiting...")
         else:
@@ -689,22 +692,100 @@ class iSurveyTools:
         if node:
             node.setItemVisibilityChecked(True)
 
+    def add_linked_events_to_proj(self, df_linked_event, epsg_code, name):
+        conn = self.initDBConnection()
+        if conn is None:
+            QMessageBox.critical(self.dlg,
+                                 'Select Masterfile ',
+                                 "You have not selected a valid Masterfile Database, please do so.\nExiting...")
+            self.close_master_file_connect_signals()
+            return
+
+        ''' Create one layer for one type of linked event I.e Freespans'''
+        linea = iface.addVectorLayer("LineString?crs=epsg:" + str(epsg_code) + "&field=id:integer&index=yes", name, "memory")
+        pr = linea.dataProvider()
+        linea.startEditing()
+        feature = QgsFeature()
+
+        cnt = 0
+        for col in df_linked_event.columns:
+            if cnt == (0 or 1 or 2):
+                pr.addAttributes([QgsField(str(col), QVariant.Double)])
+
+            else:
+                pr.addAttributes([QgsField(str(col), QVariant.String)])
+            cnt = cnt + 1
+        pr.addAttributes([QgsField("event_length_kp_based", QVariant.Double)])
+        pr.addAttributes([QgsField("event_length_actual", QVariant.Double)])
+        linea.updateFields()
+
+        for cnt, row in df_linked_event.iterrows():
+            sql_query = 'SELECT kp, easting, northing ' \
+                        'FROM NxN_Last_Pass ' \
+                        'WHERE kp >= ' + str(row.kp_start) + ' and kp <= ' + str(row.kp_end)
+            df_linked_event_elem = pd.read_sql(sql_query, conn)
+            if df_linked_event_elem.empty:
+                err_txt = "Seems like there is no As-Trenched Last pass data for " + str(row.event_type) + ":" + str(row.event_code_start) + " event in this kp range[" + str(row.kp_start) + "-" + str(row.kp_end) + "] in the Masterfile\nContinuing with the other..."
+                QMessageBox.critical(self.dlg,
+                                     'Import Linked Events error',
+                                     err_txt)
+                pass
+            else:
+                event_element_point_list = []
+                for index, pos_row in df_linked_event_elem.iterrows():
+                    if (pos_row['easting'] is None or pos_row['northing'] is None):
+                        print("KP: " + str(pos_row['kp']) + " Skipping this line since no as-trenched data")
+                    else:
+                        #print(pos_row)
+                        event_element_pt = QgsPoint(float(pos_row['easting']), float(pos_row['northing']))
+                        event_element_point_list.append(event_element_pt)
+
+                        # Calculate actual event element distance
+                        if index == 0:
+                            event_element_actual_dist = 0
+                        else:
+                            event_element_actual_dist = event_element_actual_dist + (event_element_point_list[index].distance(event_element_point_list[index - 1]))
+
+                #print(event_element_point_list)
+                if event_element_point_list:
+                    feature.setGeometry(QgsGeometry.fromPolyline(event_element_point_list))
+                    attributes_list = row.tolist()
+                    attributes_list.insert(0, cnt)
+                    attributes_list.insert(len(attributes_list), round((row['kp_end'] - row['kp_start'])*1000, 0))
+                    attributes_list.insert(len(attributes_list), round(event_element_actual_dist, 0))
+                    feature.setAttributes(attributes_list)
+                    linea.addFeature(feature)
+        linea.commitChanges()
+
+        # Configure label settings 1
+        settings = QgsPalLayerSettings()
+        settings.fieldName = "concat(event_type + ' ' + to_string(id) +  ': ' + to_string(round( event_length_kp_based,0) )+ 'm' )"
+        settings.isExpression = True
+        settings.placement = QgsPalLayerSettings.Line
+        text_format = QgsTextFormat()
+        text_format.setSize(10)
+        settings.setFormat(text_format)
+        # create and append a new rule
+        labels = QgsVectorLayerSimpleLabeling(settings)
+        linea.setLabeling(labels)
+        linea.setLabelsEnabled(True)
+        linea.triggerRepaint()
+
     def run_importEiva(self):
         print("Running EIVA import")
         """Run method that performs all the real work"""
-
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
         if self.eiva_first_start:
             self.eiva_first_start = False
             self.eiva_dlg = loadEivaDialog()
 
+        self.eiva_dlg.open_folder.clicked.connect(self.open_select_eiva)
         # show the dialog
         self.eiva_dlg.show()
         # Run the dialog event loop
         result = self.eiva_dlg.exec_()
 
-        self.eiva_dlg.open_folder.clicked.connect(self.open_select_eiva)
         self.eiva_dlg.cB_EPSG.clicked.connect(self.handle_QGIS_Project_EPSG_eiva)
 
         if self.eiva_dlg.cB_EPSG.isChecked():
@@ -723,9 +804,10 @@ class iSurveyTools:
             # basename = os.path.basename(runline_file)
             # self.runline_dlg.layer_name.setValue(basename)
             if not os.path.exists(eiva_file):
-                QMessageBox.critical(self.iface.mainWindow(),
+                QMessageBox.critical(self.eiva_dlg,
                                      'Read EIVA file',
                                      "Could not find EIVA file. File does not exist?\nExiting...")
+                self.eiva_dlg.open_folder.clicked.disconnect(self.open_select_eiva)
                 return
             if file_extension == '.rln' or file_extension == '.RLN' or file_extension == '.rlx' or file_extension == '.RLX':
                 n_start_rows = []
@@ -756,22 +838,16 @@ class iSurveyTools:
                             if line[0] == '"':
                                 n_start_rows.append(cnt+1)
                                 runline_name.append(line.replace('\n', '').replace('"', ''))
-                            if line[0] == '\n':
                                 n_end_rows.append(cnt)
-
                     n_end_rows.append(cnt+1)
-
                 myfile.close()
-                # print(n_start_rows)
-                # print(n_end_rows)
-                # print(str(len(runline_name)) + " Runline(s) in file")
-                # print(runline_name)
 
                 if file_extension == '.rln' or file_extension == '.RLN':
+                    print(n_start_rows)
+                    print(n_end_rows)
                     for i, run_name in enumerate(runline_name):
                         print("Adding runline name: " + str(run_name))
-                        df_seg = pd.read_csv(eiva_file, sep=' |;', skiprows=n_start_rows[i], nrows=n_end_rows[i]-n_start_rows[i], skip_blank_lines=True, comment='#', names=['eastings', 'northings', 'kp'], engine='python')
-                        # print(df_seg)
+                        df_seg = pd.read_csv(eiva_file, sep=' |,|;', skiprows=n_start_rows[i], nrows=n_end_rows[i]-n_start_rows[i], skip_blank_lines=True, comment='#', names=['eastings', 'northings', 'kp'], engine='python')
                         self.add_runline_to_proj(df_seg, epsg_code, run_name)
 
                 elif file_extension == '.rlx' or file_extension == '.RLX':
@@ -785,21 +861,6 @@ class iSurveyTools:
                         # print(df_seg)
                         self.add_runline_to_proj(df_seg, epsg_code, run_name)
 
-                self.iface.zoomToActiveLayer()
-
-
-                #QgsProject.instance().addMapLayers([rpl_points_layer])  # 3 correction
-                # vectorLyr = QgsVectorLayer('pyqgis_data/nyc/NYC_MUSEUMS_GEO.shp', 'Museums', "ogr")
-                # n_features = vectorLyr.featureCount()  # added line
-                # vpr = vectorLyr.dataProvider()
-                # pnt = QgsGeometry.fromPoint(QgsPoint(-74.80, 40.549))
-                # f = QgsFeature()
-                # f.setGeometry(pnt)
-                # f.setAttributes([n_features])  # added line
-                # vpr.addFeatures([f])
-                # vectorLyr.updateExtents()
-
-
                 print("Finished Loading Runline file")
 
             elif file_extension == '.etr' or file_extension == '.ETR':
@@ -810,25 +871,26 @@ class iSurveyTools:
 
             elif file_extension == ('.wpt' or '.WPT'):
                 print("Importing WPT file")
-                df = pd.read_csv(eiva_file, sep=',', skip_blank_lines=True, comment='#', names=['Name', 'Easting', 'Northing', 'Depth'], engine='python')
+                df = pd.read_csv(eiva_file, sep=',', skip_blank_lines=True, comment='#', names=['Name', 'Easting', 'Northing', 'Altitude'], engine='python')
                 self.add_waypoints_to_proj(df, epsg_code, str(self.eiva_dlg.layer_name.value()))
-                print("Finished importing ETR file")
+                print("Finished importing WPT file")
 
             elif file_extension == ('.wp2' or '.WP2'):
                 print("Importing WP2 file")
-                df = pd.read_csv(eiva_file, sep=';', skip_blank_lines=True, comment='#', names=['Name', 'Easting', 'Northing', 'Depth', 'param1', 'param2', 'param3', 'param4', 'param5', 'param6', 'param7', 'param8', 'param9', 'param10', 'param11', 'param12', 'param13', 'param14', 'param15'], engine='python')
+                df = pd.read_csv(eiva_file, sep=';', skip_blank_lines=True, comment='#', names=['Name', 'Easting', 'Northing', 'Altitude', 'fgcolor_palette', 'bgcolor_palette', 'textcolor_palette', 'fontname', 'fontsize', 'symbol_filled', 'symbolfont', 'symbolfontsize', 'note', 'titleformat', 'radius', 'extracircles', 'radiusinc', 'state', 'param17', 'param18'], engine='python')
                 self.add_waypoints_to_proj(df, epsg_code, str(self.eiva_dlg.layer_name.value()))
-                print("Finished importing ETR file")
-
-            # elif file_extension == '.wp2':
-            #     print("Importing wp2 file")
+                print("Finished importing WP2 file")
 
             else:
                 err_text = "File Format: " + str(file_extension) +  " is NOT supported. CURRENTLY SUPPORTED FORMATS: RLN, RLX, ETR, WP2 and WPT \nExiting..."
                 print(err_text)
-                QMessageBox.critical(self.iface.mainWindow(),
+                QMessageBox.critical(self.eiva_dlg,
                                      'Read EIVA file',
                                      str(err_text))
+                self.eiva_dlg.open_folder.clicked.disconnect(self.open_select_eiva)
+            self.iface.zoomToActiveLayer()
+
+        self.eiva_dlg.open_folder.clicked.disconnect(self.open_select_eiva)
 
     def create_categorized_layers(self, r_layer, id_attr):
         id_attr = str(id_attr)
@@ -857,7 +919,6 @@ class iSurveyTools:
             if renderer is not None:
                 r_layer.setRenderer(renderer)
             r_layer.triggerRepaint()
-
     # def run_importRunline(self):
     #     print("Running Runline import")
     #     """Run method that performs all the real work"""
@@ -1014,6 +1075,49 @@ class iSurveyTools:
     #                                  'Read Track file',
     #                                  "Could not read file extention: " + str(
     #                                      file_extension) + ". Only ETRN is compatible?\nExiting...")
+    def check_event_linking(self, df_copy, start_code, end_code):
+        start_code = str(start_code)
+        end_code = str(end_code)
+        df_copy.loc[:, 'QC'] = np.nan
+        df_copy.loc[::1, 'QC'] = end_code
+        df_copy.loc[::2, 'QC'] = start_code
+        df_copy.loc[:, 'QC_bol'] = (df_copy['event_code'] == df_copy['QC'])
+        temp = False
+        error_list = []
+        for cnt, row in df_copy.iterrows():
+            if cnt == 0:
+                prev_row = row
+            if row['QC_bol'] == temp:
+                # TODO: Find a better or more clever way for linked events. They need to be correctly exported from NaviModel
+                err_txt = "Two similar event-codes after each other:\nKP: " + str(
+                    prev_row['kp']) + ". EventCode: " + str(prev_row['event_code']) + ".\nKP: " + str(
+                    row['kp']) + ". EventCode: " + str(row['event_code']) + "[REMOVED!!!].\n"
+                print(err_txt)
+                error_list.append(cnt)
+                ''' Invert boolean'''
+                temp = not temp
+            '''Save the last row'''
+            prev_row = row
+        df_copy = df_copy.drop(df_copy.index[error_list])
+        df_copy = df_copy.drop("QC", axis=1)
+        df_copy = df_copy.drop("QC_bol", axis=1)
+        print("Removed in Total: " + str(len(error_list)) + " EventCodes for " + str(
+            df_copy['event_type'].iloc[0]) + ":" + str(df_copy['event_code'].iloc[0]) + "/" + str(
+            df_copy['event_code'].iloc[1]))
+
+        if len(df_copy) % 2 == 0:
+            ''' Even number Do nothing'''
+        else:
+            df_copy.drop(df_copy.tail(1).index, inplace=True)  # drop last row
+
+        frame = {'kp_start': df_copy['kp'].iloc[::2].reset_index(drop=True),
+                 'kp_end': df_copy['kp'].iloc[1::2].reset_index(drop=True),
+                 'event_code_start': df_copy['event_code'].iloc[::2].reset_index(drop=True),
+                 'event_code_end': df_copy['event_code'].iloc[1::2].reset_index(drop=True),
+                 'event_type': df_copy['event_type'].iloc[1::2].reset_index(drop=True)}
+        df_ret = pd.DataFrame(frame)
+        print("There are: " + str(len(df_ret)) + " Linked Events left for this type")
+        return df_ret
 
     def run(self):
         """Run method that performs all the real work"""
@@ -1024,15 +1128,15 @@ class iSurveyTools:
             self.first_start = False
             self.dlg = iSurveyToolsDialog()
 
-        # show the dialog
-        self.dlg.show()
-        # Run the dialog event loop
-        result = self.dlg.exec_()
-
         self.dlg.pB_Browse.clicked.connect(self.openSelectDB)
         self.dlg.pB_Validate.clicked.connect(self.validateMasterfile)
         self.dlg.pB_Refresh_tid_sid.clicked.connect(self.populate_tid_and_sid_list)
         self.dlg.cB_EPSG.clicked.connect(self.handle_QGIS_Project_EPSG)
+
+        # show the dialog
+        self.dlg.show()
+        # Run the dialog event loop
+        result = self.dlg.exec_()
 
         if self.dlg.cB_EPSG.isChecked():
             epsg_code = self.iface.mapCanvas().mapSettings().destinationCrs().authid()
@@ -1049,13 +1153,19 @@ class iSurveyTools:
         #project.setFileName(pathQGS)
         # See if OK was pressed
         if result:
-            conn = self.initDBConnection()
             if self.dlg.cB_runline.isChecked():
+                conn = self.initDBConnection()
+                if conn is None:
+                    QMessageBox.critical(self.dlg,
+                                         'Select Masterfile ',
+                                         "You have not selected a valid Masterfile Database, please do so.\nExiting...")
+                    self.close_master_file_connect_signals()
+                    return
                 print("Start Importing Runline")
                 sql_query_rpl = 'SELECT * FROM rpl ORDER BY kp ASC;'
                 df_rpl = pd.read_sql(sql_query_rpl, conn)
                 if df_rpl.empty:
-                    QMessageBox.critical(self.iface.mainWindow(),
+                    QMessageBox.critical(self.dlg,
                                          'Import Runline error',
                                          "Seems like the Runline table in the Masterfile is empty \nExiting...")
                     return
@@ -1114,11 +1224,18 @@ class iSurveyTools:
                                          "Sucessfully imported Runline as layer: \n MasterFile_Runline")
 
             if self.dlg.cB_aslaid.isChecked():
+                conn = self.initDBConnection()
+                if conn is None:
+                    QMessageBox.critical(self.dlg,
+                                         'Select Masterfile ',
+                                         "You have not selected a valid Masterfile Database, please do so.\nExiting...")
+                    self.close_master_file_connect_signals()
+                    return
                 print("Start Importing As-Laid")
                 sql_query_as_laid = 'SELECT * FROM as_laid ORDER BY kp ASC;'
                 df_as_laid = pd.read_sql(sql_query_as_laid, conn)
                 if df_as_laid.empty:
-                    QMessageBox.critical(self.iface.mainWindow(),
+                    QMessageBox.critical(self.dlg,
                                          'Import As-Laid error',
                                          "Seems like the As-Laid table in the Masterfile is empty \nExiting...")
                 else:
@@ -1164,11 +1281,19 @@ class iSurveyTools:
                         layer.setName('MF As-Laid_Line')     # renaming layer
 
             if self.dlg.cB_capjet.isChecked():
+                conn = self.initDBConnection()
+                if conn is None:
+                    QMessageBox.critical(self.dlg,
+                                         'Select Masterfile ',
+                                         "You have not selected a valid Masterfile Database, please do so.\nExiting...")
+                    self.close_master_file_connect_signals()
+                    return
                 print("Start Capjet Track")
                 sql_query_capjet_track = 'SELECT * FROM trenching;'
+
                 df_capjet_track = pd.read_sql(sql_query_capjet_track, conn)
                 if df_capjet_track.empty:
-                    QMessageBox.critical(self.iface.mainWindow(),
+                    QMessageBox.critical(self.dlg,
                                          'Import Capjet Track error',
                                          "Seems like the Capjet Track table in the Masterfile is empty \nExiting...")
                 else:
@@ -1226,11 +1351,26 @@ class iSurveyTools:
                                             "Sucessfully imported Trencher Track as layer: \n MF Trencher Track")
 
             if self.dlg.cB_astrenched.isChecked():
+                conn = self.initDBConnection()
+                if conn is None:
+                    QMessageBox.critical(self.dlg,
+                                         'Select Masterfile ',
+                                         "You have not selected a valid Masterfile Database, please do so.\nExiting...")
+                    self.close_master_file_connect_signals()
+                    return
                 print("Start Importing As-Trenched")
-                sql_query_as_trenched = 'SELECT * FROM as_trenched;'
+                #sql_query_as_trenched_old = 'SELECT * FROM as_trenched;'
+                sql_query_as_trenched = 'SELECT * FROM NxN_Last_Pass;'
+                # sql_query_as_trenched = "SELECT max(as_trenched.sid_id), as_trenched.easting, as_trenched.northing, as_trenched.origin_seabed_level, as_trenched.depth_pipe, as_trenched.pipe_DCC, as_trenched.depth_of_lowering, as_trenched.depth_of_cover, as_trenched.trench_width, as_trenched.depth_to_cover,depth_pipe_cover " \
+                #            "FROM rpl" \
+                #            "LEFT JOIN as_trenched on rpl.kp = as_trenched.kp" \
+                #            "WHERE rpl.kp <= 120 AND rpl.KP >= 0.065" \
+                #            "GROUP BY rpl.kp ;"
+
                 df_as_trenched = pd.read_sql(sql_query_as_trenched, conn)
-                if  df_as_trenched.empty:
-                    QMessageBox.critical(self.iface.mainWindow(),
+
+                if df_as_trenched.empty:
+                    QMessageBox.critical(self.dlg,
                                          'Import As-Trenched error',
                                          "Seems like the As-Trenched table in the Masterfile is empty \nExiting...")
                 else:
@@ -1257,7 +1397,7 @@ class iSurveyTools:
                              'DATE_FORMAT': '',
                              'INPUT': layer,
                              'ORDER_FIELD': 'kp',
-                             'GROUP_FIELD': 'sid_id',     # grouping on SID ID
+                             'GROUP_FIELD': 'max_sid',     # grouping on SID ID
                              'OUTPUT': 'TEMPORARY_OUTPUT'   # temporary layer, Path given name
                         }
 
@@ -1269,10 +1409,10 @@ class iSurveyTools:
                         layer = iface.activeLayer()
                         layer.setName('MF AT-X Pipe Pos_Line')     # renaming layer
                         layer.loadNamedStyle(
-                            os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'SID_as-trenched.qml'))
+                            os.path.join(os.path.dirname(__file__), 'QGIS-styles', 'SID_as-trenched_2.qml'))
 
                         # Create different colors for categorized layers
-                        self.create_categorized_layers(layer, "sid_id")
+                        self.create_categorized_layers(layer, "max_sid")
                         """
                         Set Visible Layers
                         """
@@ -1286,11 +1426,26 @@ class iSurveyTools:
                                             "Sucessfully imported As-Trenched Pipe Pos as layer: \n MasterFile As-Trenched Pipe Pos")
 
             if self.dlg.cB_events.isChecked():
+                conn = self.initDBConnection()
+                if conn is None:
+                    QMessageBox.critical(self.dlg,
+                                         'Select Masterfile ',
+                                         "You have not selected a valid Masterfile Database, please do so.\nExiting...")
+                    self.close_master_file_connect_signals()
+                    return
                 print("Start Importing Events")
                 sql_query_events = 'SELECT * FROM events;'
-                df_events = pd.read_sql(sql_query_events, conn)
+                try:
+                    df_events = pd.read_sql(sql_query_events, conn)
+                except pd.io.sql.DatabaseError as e:
+                    QMessageBox.critical(self.dlg,
+                                         'Import Event error',
+                                         "Seems like the Masterfile is corrupt: \n" + str(e) + "\n\nExiting...")
+                    self.close_master_file_connect_signals()
+                    return
+
                 if df_events.empty:
-                    QMessageBox.critical(self.iface.mainWindow(),
+                    QMessageBox.critical(self.dlg,
                                          'Import Event error',
                                          "Seems like the Event table in the Masterfile is empty \nExiting...")
                 else:
@@ -1308,13 +1463,86 @@ class iSurveyTools:
                     mylayer.triggerRepaint()
                     mylayer.setLabelsEnabled(True)
 
+                    """
+                    Adding line feature based on events that can be linked, qgis:pointstopath
+                    2020-03-09 dags
+                    """
+                    if self.dlg.cB_events_lin.isChecked():
+                        print('Start creating Linked events line features (Freespans)')
+                        sql_query_freespan = "SELECT kp, event_code, event_type " \
+                                             "FROM events " \
+                                             "WHERE event_code='FS' or event_code='FE' " \
+                                             "ORDER BY kp ASC"
+                        try:
+                            df_freespan = pd.read_sql(sql_query_freespan, conn)
+                            df_linked_freespans = self.check_event_linking(df_freespan, 'FS', 'FE')
+                            self.add_linked_events_to_proj(df_linked_freespans, epsg_code, 'Linked Events: Freespans')
+                        except pd.io.sql.DatabaseError as e:
+                            QMessageBox.critical(self.dlg,
+                                                 'Import Linked Events: Freespans',
+                                                 "Failed executing SQL Query: \n" + str(sql_query_freespan) + "\nErrorCode: " + str(e) + "\n\nSkipping this linked layer")
+                            pass
 
+                        print('Start creating Linked events line features (Exposures ES/EE)')
+                        sql_query_exposures = "SELECT kp, event_type, event_code " \
+                                              "FROM events " \
+                                              "WHERE event_code == 'ES' or event_code =='EE' " \
+                                              "ORDER by kp ASC;"
+                        try:
+                            df_exposures = pd.read_sql(sql_query_exposures, conn)
+                            df_linked_exposures = self.check_event_linking(df_exposures, 'ES', 'EE')
+                            self.add_linked_events_to_proj(df_linked_exposures, epsg_code, 'Linked Events: Exposures')
+                        except pd.io.sql.DatabaseError as e:
+                            QMessageBox.critical(self.dlg,
+                                                 'Import Linked Events: Exposures',
+                                                 "Failed executing SQL Query: \n" + str(sql_query_exposures) + "\nErrorCode: " + str(e) + "\n\nSkipping this linked layer")
+                            pass
 
+                        print('Start creating Linked events line features (SIDS SIDS/SIDE)')
+                        sql_query_sids = "SELECT kp, event_type, event_code " \
+                                         "FROM events " \
+                                         "WHERE event_code == 'SIDS' or event_code =='SIDE' " \
+                                         "ORDER by kp ASC;"
+                        try:
+                            df_sids = pd.read_sql(sql_query_sids, conn)
+                            df_linked_sids = self.check_event_linking(df_sids, 'SIDS', 'SIDE')
+                            self.add_linked_events_to_proj(df_linked_sids, epsg_code, 'Linked Events: SID')
+                        except pd.io.sql.DatabaseError as e:
+                            QMessageBox.critical(self.dlg,
+                                                 'Import Linked Events: SID',
+                                                 "Failed executing SQL Query: \n" + str(
+                                                     sql_query_exposures) + "\nErrorCode: " + str(
+                                                     e) + "\n\nSkipping this linked layer")
+                            pass
+                        print('Start creating Linked events line features (Pumps ON/OFF PST PSP)')
+                        sql_query_pumps = "SELECT kp, event_type, event_code " \
+                                          "FROM events " \
+                                          "WHERE event_code == 'PST' or event_code =='PSP' " \
+                                          "ORDER by kp ASC;"
+                        try:
+                            df_pumps = pd.read_sql(sql_query_pumps, conn)
+                            df_linked_pumps = self.check_event_linking(df_pumps, 'PST', 'PSP')
+                            self.add_linked_events_to_proj(df_linked_pumps, epsg_code, 'Linked Events: PUMPS')
+                        except pd.io.sql.DatabaseError as e:
+                            QMessageBox.critical(self.dlg,
+                                                 'Import Linked Events: PUMPS',
+                                                 "Failed executing SQL Query: \n" + str(
+                                                     sql_query_exposures) + "\nErrorCode: " + str(
+                                                     e) + "\n\nSkipping this linked layer")
+                            pass
+                    self.iface.zoomToActiveLayer()
                     QMessageBox.information(self.iface.mainWindow(),
                                          'Sucessfully Imported Events',
                                          "Sucessfully imported Events as layer: \n MasterFile Events")
 
             if self.dlg.cB_capjet_tid.isChecked():
+                conn = self.initDBConnection()
+                if conn is None:
+                    QMessageBox.critical(self.dlg,
+                                         'Select Masterfile ',
+                                         "You have not selected a valid Masterfile Database, please do so.\nExiting...")
+                    self.close_master_file_connect_signals()
+                    return
                 print("Start Capjet Track TID")
                 print(self.dlg.comboBox_TID.currentText())
                 tid_nr = float(str(self.dlg.comboBox_TID.currentText()))
@@ -1322,7 +1550,7 @@ class iSurveyTools:
                 sql_query_capjet_track = 'SELECT * FROM trenching WHERE trenching_id =' + str(tid_nr) + ';'
                 df_capjet_track = pd.read_sql(sql_query_capjet_track, conn)
                 if df_capjet_track.empty:
-                    QMessageBox.critical(self.iface.mainWindow(),
+                    QMessageBox.critical(self.dlg,
                                          'Import Capjet Track error',
                                          "Seems like the Capjet Track table in the Masterfile is empty \nExiting...")
                 else:
@@ -1373,6 +1601,13 @@ class iSurveyTools:
                                             "Sucessfully imported Trencher Track as layer: \n TID%s Trencher Track_Line" % str(tid_nr))
 
             if self.dlg.cB_astrenched_sid.isChecked():
+                conn = self.initDBConnection()
+                if conn is None:
+                    QMessageBox.critical(self.dlg,
+                                         'Select Masterfile ',
+                                         "You have not selected a valid Masterfile Database, please do so.\nExiting...")
+                    self.close_master_file_connect_signals()
+                    return
                 print("Start Importing As-Trenched")
                 print(self.dlg.comboBox_SID.currentText())
                 sid_nr = float(str(self.dlg.comboBox_SID.currentText()))
@@ -1380,7 +1615,7 @@ class iSurveyTools:
                 sql_query_as_trenched = 'SELECT * FROM as_trenched WHERE sid_id=' + str(sid_nr) + ';'
                 df_as_trenched = pd.read_sql(sql_query_as_trenched, conn)
                 if df_as_trenched.empty:
-                    QMessageBox.critical(self.iface.mainWindow(),
+                    QMessageBox.critical(self.dlg,
                                          'Import As-Trenched error',
                                          "Seems like the As-Trenched table in the Masterfile is empty \nExiting...")
                 else:
@@ -1426,5 +1661,6 @@ class iSurveyTools:
                     QMessageBox.information(self.iface.mainWindow(),
                                             'Sucessfully Imported',
                                             "Sucessfully imported As-Trenched Pipe Pos as layer: \n SID%s AT-X Pipe Pos_Line" % str(sid_nr))
+                print("Sucessfully Finished Program")
 
-            print("Finished Program")
+        self.close_master_file_connect_signals()
