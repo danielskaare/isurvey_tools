@@ -6,22 +6,22 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>433</width>
-    <height>422</height>
+    <width>439</width>
+    <height>429</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Import from Masterfile</string>
   </property>
   <layout class="QFormLayout" name="formLayout_2">
-   <item row="0" column="0" colspan="2">
+   <item row="0" column="1">
     <widget class="QLabel" name="label_3">
      <property name="text">
       <string>MasterFile</string>
      </property>
     </widget>
    </item>
-   <item row="1" column="0" colspan="2">
+   <item row="1" column="1">
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <widget class="QgsFilterLineEdit" name="line_db_path">
@@ -55,7 +55,7 @@
      </item>
     </layout>
    </item>
-   <item row="2" column="0" colspan="2">
+   <item row="2" column="1">
     <layout class="QHBoxLayout" name="horizontalLayout_4">
      <item>
       <widget class="QLabel" name="label_epsg">
@@ -120,7 +120,7 @@
      </item>
     </layout>
    </item>
-   <item row="3" column="0" colspan="2">
+   <item row="3" column="1">
     <widget class="Line" name="line_2">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
@@ -143,27 +143,10 @@
        </property>
       </widget>
      </item>
-     <item row="0" column="1">
-      <widget class="QCheckBox" name="cB_runline_lin">
-       <property name="enabled">
-        <bool>true</bool>
-       </property>
-       <property name="text">
-        <string>create vector line feature</string>
-       </property>
-      </widget>
-     </item>
      <item row="1" column="0">
       <widget class="QCheckBox" name="cB_aslaid">
        <property name="text">
         <string>Import As-Laid</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QCheckBox" name="cB_aslaid_lin">
-       <property name="text">
-        <string>create vector line feature</string>
        </property>
       </widget>
      </item>
@@ -174,13 +157,6 @@
        </property>
       </widget>
      </item>
-     <item row="2" column="1">
-      <widget class="QCheckBox" name="cB_capjet_lin">
-       <property name="text">
-        <string>create vector line feature</string>
-       </property>
-      </widget>
-     </item>
      <item row="3" column="0">
       <widget class="QCheckBox" name="cB_astrenched">
        <property name="text">
@@ -188,24 +164,10 @@
        </property>
       </widget>
      </item>
-     <item row="3" column="1">
-      <widget class="QCheckBox" name="cB_astrenched_lin">
-       <property name="text">
-        <string>create vector line feature</string>
-       </property>
-      </widget>
-     </item>
      <item row="4" column="0">
       <widget class="QCheckBox" name="cB_events">
        <property name="text">
         <string>Import Events</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="1">
-      <widget class="QCheckBox" name="cB_events_lin">
-       <property name="text">
-        <string>create vector line feature (Linked Events)</string>
        </property>
       </widget>
      </item>
@@ -229,23 +191,61 @@
        </property>
       </widget>
      </item>
+     <item row="0" column="1">
+      <widget class="QCheckBox" name="cB_runline_lin">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="text">
+        <string>create vector line feature</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QCheckBox" name="cB_aslaid_lin">
+       <property name="text">
+        <string>create vector line feature</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QCheckBox" name="cB_capjet_lin">
+       <property name="text">
+        <string>create vector line feature</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QCheckBox" name="cB_astrenched_lin">
+       <property name="text">
+        <string>create vector line feature</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QCheckBox" name="cB_events_lin">
+       <property name="text">
+        <string>create vector line feature (Linked Events)</string>
+       </property>
+      </widget>
+     </item>
     </layout>
    </item>
-   <item row="6" column="0" colspan="2">
+   <item row="6" column="1">
     <widget class="Line" name="line">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
      </property>
     </widget>
    </item>
-   <item row="7" column="0" colspan="2">
+   <item row="7" column="1">
     <widget class="QLabel" name="label_2">
      <property name="text">
       <string>Import Parts</string>
      </property>
     </widget>
    </item>
-   <item row="8" column="0" colspan="2">
+   <item row="8" column="1">
     <layout class="QHBoxLayout" name="horizontalLayout_2">
      <item>
       <widget class="QCheckBox" name="cB_capjet_tid">
@@ -272,7 +272,7 @@
      </item>
     </layout>
    </item>
-   <item row="9" column="0" colspan="2">
+   <item row="9" column="1">
     <layout class="QHBoxLayout" name="horizontalLayout_3">
      <item>
       <widget class="QCheckBox" name="cB_astrenched_sid">
@@ -299,14 +299,14 @@
      </item>
     </layout>
    </item>
-   <item row="10" column="0" colspan="2">
+   <item row="10" column="1">
     <widget class="QPushButton" name="pB_Refresh_tid_sid">
      <property name="text">
       <string>Refresh TIDs and SIDs</string>
      </property>
     </widget>
    </item>
-   <item row="11" column="0" colspan="2">
+   <item row="11" column="1">
     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
@@ -319,7 +319,7 @@
      </property>
     </spacer>
    </item>
-   <item row="12" column="0" colspan="2">
+   <item row="12" column="1">
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>

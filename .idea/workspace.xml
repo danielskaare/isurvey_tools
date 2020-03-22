@@ -4,7 +4,10 @@
     <list default="true" id="71041ddf-e759-4072-a0e3-c518f4cf9993" name="Default" comment="UPDATE:  Linked Events for Freespan, Exposures, SID, Pumps included&#10;UPDATE: Fixed small bug for importing Eiva Runlines">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/isurvey_tools.py" beforeDir="false" afterPath="$PROJECT_DIR$/isurvey_tools.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/isurvey_tools_dialog.py" beforeDir="false" afterPath="$PROJECT_DIR$/isurvey_tools_dialog.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/isurvey_tools_dialog_base.ui" beforeDir="false" afterPath="$PROJECT_DIR$/isurvey_tools_dialog_base.ui" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources.py" beforeDir="false" afterPath="$PROJECT_DIR$/resources.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources.qrc" beforeDir="false" afterPath="$PROJECT_DIR$/resources.qrc" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -38,7 +41,12 @@
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
-  <component name="RunManager" selected="Python.test02">
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\dags\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\isurvey_tools" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Python.test04">
     <configuration name="Master_file_2" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="isurvey_tools" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -102,10 +110,32 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="test04" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="isurvey_tools" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/test04.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.test02" />
+        <item itemvalue="Python.test04" />
         <item itemvalue="Python.test01" />
+        <item itemvalue="Python.test02" />
         <item itemvalue="Python.Master_file_2" />
       </list>
     </recent_temporary>
@@ -154,11 +184,17 @@
       <option name="project" value="LOCAL" />
       <updated>1583527917290</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="UPDATE:  Linked Events for Freespan, Exposures, SID, Pumps included&#10;UPDATE: Fixed small bug for importing Eiva Runlines">
+      <created>1584129362261</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1584129362261</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
-    <option name="CHECK_CODE_SMELLS_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="CHECK_CODE_CLEANUP_BEFORE_PROJECT_COMMIT" value="true" />
     <MESSAGE value="NEW: Style templates used for SID/TID, and MF Trencher Track&#10;UPDATE: EIVA Runline&#10;MISC..." />
     <MESSAGE value="MISC..." />
@@ -167,66 +203,82 @@
     <MESSAGE value="UPDATE:  Now supports RLX, ETR, WP2 and WPT" />
     <MESSAGE value="UPDATE:  Linked Events for Freespan, Exposures, SID, Pumps included&#10;UPDATE: Fixed small bug for importing Eiva Runlines" />
     <option name="LAST_COMMIT_MESSAGE" value="UPDATE:  Linked Events for Freespan, Exposures, SID, Pumps included&#10;UPDATE: Fixed small bug for importing Eiva Runlines" />
-    <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
   </component>
   <component name="WindowStateProjectService">
     <state x="2472" y="238" key="#Notifications" timestamp="1583360960413">
       <screen x="1920" y="0" width="1920" height="1160" />
     </state>
     <state x="2472" y="238" key="#Notifications/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583360960413" />
-    <state x="420" y="178" width="1141" height="811" key="CommitChangelistDialog2" timestamp="1584129231732">
+    <state x="420" y="178" width="1141" height="811" key="CommitChangelistDialog2" timestamp="1584129361648">
       <screen x="0" y="0" width="1920" height="1160" />
     </state>
     <state x="2158" y="74" width="1627" height="816" key="CommitChangelistDialog2/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583360933702" />
-    <state x="420" y="178" width="1141" height="811" key="CommitChangelistDialog2/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584129231732" />
+    <state x="420" y="178" width="1141" height="811" key="CommitChangelistDialog2/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584129361648" />
     <state x="2158" y="74" key="CommitChangelistDialog2/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@1920.0.1920.1160" timestamp="1583407002391" />
     <state x="2303" y="38" width="1094" height="535" key="CommitChangelistDialog2/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582057216076" />
     <state x="2360" y="256" key="CommitChangelistDialog2/0.0.1920.1160/3840.0.1920.1160/1920.0.1920.1160@0.0.1920.1160" timestamp="1582363671385" />
-    <state x="2660" y="335" key="FileChooserDialogImpl" timestamp="1582039666887">
-      <screen x="1920" y="0" width="1920" height="1160" />
+    <state x="92" y="92" width="1736" height="976" key="DiffContextDialog" timestamp="1584717603609">
+      <screen x="0" y="0" width="1920" height="1160" />
     </state>
+    <state x="92" y="92" width="1736" height="976" key="DiffContextDialog/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584717603609" />
+    <state x="740" y="335" key="FileChooserDialogImpl" timestamp="1584699770402">
+      <screen x="0" y="0" width="1920" height="1160" />
+    </state>
+    <state x="740" y="335" key="FileChooserDialogImpl/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584699770402" />
     <state x="2660" y="335" key="FileChooserDialogImpl/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582039666887" />
-    <state width="1899" height="160" key="GridCell.Tab.0.bottom" timestamp="1583528236608">
+    <state width="1899" height="160" key="GridCell.Tab.0.bottom" timestamp="1584364826271">
       <screen x="0" y="0" width="1920" height="1160" />
     </state>
     <state width="1899" height="321" key="GridCell.Tab.0.bottom/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583363159102" />
-    <state width="1899" height="160" key="GridCell.Tab.0.bottom/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1583528236608" />
+    <state width="1899" height="160" key="GridCell.Tab.0.bottom/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584364826271" />
     <state width="1899" height="321" key="GridCell.Tab.0.bottom/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@1920.0.1920.1160" timestamp="1583395662924" />
-    <state width="1899" height="160" key="GridCell.Tab.0.center" timestamp="1583528236608">
+    <state width="1899" height="160" key="GridCell.Tab.0.center" timestamp="1584364826271">
       <screen x="0" y="0" width="1920" height="1160" />
     </state>
     <state width="1899" height="321" key="GridCell.Tab.0.center/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583363159102" />
-    <state width="1899" height="160" key="GridCell.Tab.0.center/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1583528236608" />
+    <state width="1899" height="160" key="GridCell.Tab.0.center/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584364826271" />
     <state width="1899" height="321" key="GridCell.Tab.0.center/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@1920.0.1920.1160" timestamp="1583395662924" />
-    <state width="1899" height="160" key="GridCell.Tab.0.left" timestamp="1583528236608">
+    <state width="1899" height="160" key="GridCell.Tab.0.left" timestamp="1584364826271">
       <screen x="0" y="0" width="1920" height="1160" />
     </state>
     <state width="1899" height="321" key="GridCell.Tab.0.left/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583363159102" />
-    <state width="1899" height="160" key="GridCell.Tab.0.left/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1583528236608" />
+    <state width="1899" height="160" key="GridCell.Tab.0.left/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584364826271" />
     <state width="1899" height="321" key="GridCell.Tab.0.left/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@1920.0.1920.1160" timestamp="1583395662924" />
-    <state width="1899" height="160" key="GridCell.Tab.0.right" timestamp="1583528236608">
+    <state width="1899" height="160" key="GridCell.Tab.0.right" timestamp="1584364826271">
       <screen x="0" y="0" width="1920" height="1160" />
     </state>
     <state width="1899" height="321" key="GridCell.Tab.0.right/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583363159102" />
-    <state width="1899" height="160" key="GridCell.Tab.0.right/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1583528236608" />
+    <state width="1899" height="160" key="GridCell.Tab.0.right/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584364826271" />
     <state width="1899" height="321" key="GridCell.Tab.0.right/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@1920.0.1920.1160" timestamp="1583395662924" />
+    <state x="635" y="291" width="1153" height="578" key="RollbackChangesDialog" timestamp="1584281270337">
+      <screen x="0" y="0" width="1920" height="1160" />
+    </state>
+    <state x="635" y="291" width="1153" height="578" key="RollbackChangesDialog/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584281270337" />
     <state x="2381" y="222" key="SettingsEditor" timestamp="1583362758811">
       <screen x="1920" y="0" width="1920" height="1160" />
     </state>
     <state x="2381" y="222" key="SettingsEditor/0.0.1920.1160/-1920.0.1920.1160/1920.0.1920.1160@1920.0.1920.1160" timestamp="1583362758811" />
     <state x="2381" y="222" key="SettingsEditor/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582040111579" />
     <state x="461" y="222" key="SettingsEditor/0.0.1920.1160/3840.0.1920.1160/1920.0.1920.1160@0.0.1920.1160" timestamp="1582362863798" />
-    <state x="413" y="109" width="1298" height="721" key="Vcs.Push.Dialog.v2" timestamp="1583527931896">
+    <state x="413" y="109" width="1298" height="721" key="Vcs.Push.Dialog.v2" timestamp="1584129370609">
       <screen x="0" y="0" width="1920" height="1160" />
     </state>
-    <state x="413" y="109" key="Vcs.Push.Dialog.v2/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1583527931896" />
+    <state x="413" y="109" key="Vcs.Push.Dialog.v2/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584129370609" />
     <state x="2333" y="109" key="Vcs.Push.Dialog.v2/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@1920.0.1920.1160" timestamp="1583407010580" />
     <state x="2125" y="140" width="1298" height="721" key="Vcs.Push.Dialog.v2/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@1920.0.1920.1160" timestamp="1582057251415" />
     <state x="2333" y="109" key="Vcs.Push.Dialog.v2/0.0.1920.1160/3840.0.1920.1160/1920.0.1920.1160@0.0.1920.1160" timestamp="1582363495062" />
+    <state x="53" y="103" width="1736" height="976" key="com.intellij.history.integration.ui.views.FileHistoryDialog" timestamp="1584700571664">
+      <screen x="0" y="0" width="1920" height="1160" />
+    </state>
+    <state x="53" y="103" width="1736" height="976" key="com.intellij.history.integration.ui.views.FileHistoryDialog/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584700571664" />
     <state x="655" y="404" key="com.intellij.ide.util.TipDialog" timestamp="1582039651702">
       <screen x="0" y="0" width="1920" height="1160" />
     </state>
     <state x="655" y="404" key="com.intellij.ide.util.TipDialog/0.0.1920.1160/1920.0.1920.1160/3840.0.1920.1160@0.0.1920.1160" timestamp="1582039651702" />
+    <state x="602" y="195" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser" timestamp="1584713749162">
+      <screen x="0" y="0" width="1920" height="1160" />
+    </state>
+    <state x="602" y="195" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser/0.0.1920.1160/1920.0.1920.1160/-1920.0.1920.1160@0.0.1920.1160" timestamp="1584713749162" />
     <state x="1538" y="497" key="com.intellij.openapi.vcs.update.UpdateOrStatusOptionsDialogupdate-v2" timestamp="1583525999194">
       <screen x="0" y="0" width="1920" height="1160" />
     </state>
@@ -242,8 +294,18 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/isurvey_tools.py</url>
-          <line>300</line>
-          <option name="timeStamp" value="5" />
+          <line>23</line>
+          <option name="timeStamp" value="9" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/masterfile_functions.py</url>
+          <line>7</line>
+          <option name="timeStamp" value="11" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/resources.py</url>
+          <line>10</line>
+          <option name="timeStamp" value="12" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

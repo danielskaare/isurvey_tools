@@ -21,33 +21,27 @@
  *                                                                         *
  ***************************************************************************/
 """
-import os.path
-import sqlite3
-import sys
-from os import path
-from random import randrange
-from urllib.request import pathname2url
-
-import numpy as np
-import pandas as pd
-import processing  # make it possible to use the processing toolbox functions like "point to path"
-from PyQt5.QtWidgets import QAction, QMessageBox, QFileDialog
-from qchainage import chainagetool
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
-from qgis.core import QgsVectorLayer, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, \
-    QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, \
-    QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
-from qgis.utils import iface  # 2020-02-09 kele
-
-# Initialize Qt resources from file resources.py
-# Import the code for the dialog
-from .isurvey_tools_dialog import iSurveyToolsDialog, loadEivaDialog
-
-
+from qgis.utils import iface # 2020-02-09 kele
+import csv
 # Import necessary geometric objects from shapely module
-# from shapely.geometry import Point, LineString
+#from shapely.geometry import Point, LineString
+import subprocess
+import sqlite3, sys
+import pandas as pd
+from qgis.core import Qgis, QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
+from urllib.request import pathname2url
+from os import path
+from pathlib import Path
+from qchainage import chainagetool
+from random import randrange
+import numpy as np
+import processing   # make it possible to use the processing toolbox functions like "point to path"
+import requests
+
+from PyQt5.QtWidgets import QAction, QMessageBox, QFileDialog
 # from qgis.core import (QgsCoordinateReferenceSystem,
 #                        QgsCoordinateTransform,
 #                        QgsProject,
@@ -56,6 +50,13 @@ from .isurvey_tools_dialog import iSurveyToolsDialog, loadEivaDialog
 #                        QgsGeometry,
 #                        QgsVectorLayer,
 #                        QgsFeature)
+
+# Initialize Qt resources from file resources.py
+from .resources import *
+# Import the code for the dialog
+from .isurvey_tools_dialog import iSurveyToolsDialog, loadEivaDialog, loadExportDialog
+import os.path
+MESSAGE_CATEGORY = 'MasterFile import'
 
 class iSurveyTools:
     """QGIS Plugin Implementation."""
@@ -201,6 +202,14 @@ class iSurveyTools:
             callback=self.run_importEiva,
             parent=self.iface.mainWindow())
 
+        # Create third Icon
+        icon_path = ':/plugins/isurvey_tools/icon_export.png'
+        self.add_action(
+            icon_path,
+            text=self.tr(u'*Export Feature'),
+            callback=self.run_exportDialog,
+            parent=self.iface.mainWindow())
+
         # # Create third Icon
         # icon_path = ':/plugins/isurvey_tools/icon_etr.png'
         # self.add_action(
@@ -212,7 +221,7 @@ class iSurveyTools:
         # will be set False in run()
         self.first_start = True
         self.eiva_first_start = True
-        #self.track_first_start = True
+        self.export_first_start = True
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -237,6 +246,17 @@ class iSurveyTools:
             basename = os.path.basename(os.path.abspath(File))
             # Set filename to Layername in GUI
             self.eiva_dlg.layer_name.setValue(basename)
+
+    def open_select_export_folder(self):
+        myDir = QFileDialog.getExistingDirectory(self.export_dlg, "Open Directory to export to")
+        # QFileDialog.getOpenFileUrl()
+        # self.eiva_dlg
+        if myDir:
+            self.export_dlg.export_path.setText(os.path.abspath(myDir))
+            # basename = os.path.basename(os.path.abspath(File))
+            # Set filename to Layername in GUI
+            # self.export_dlg.layer_name.setValue(basename)
+
 
     def close_master_file_connect_signals(self):
         self.dlg.pB_Browse.clicked.disconnect(self.openSelectDB)
@@ -263,7 +283,10 @@ class iSurveyTools:
     def initDBConnection(self):
         master_file_path = self.dlg.line_db_path.value()
         if path.exists(master_file_path):
-            print("File exists")
+            # print("File exists")
+            QgsMessageLog.logMessage('Masterfile exists "{master_file_path}"'.format(
+                master_file_path=master_file_path),
+                MESSAGE_CATEGORY, Qgis.Info)
             dburi = 'file:{}?mode=rw'.format(pathname2url(master_file_path))
             try:
                 conn = sqlite3.connect(dburi, uri=True)
@@ -276,13 +299,23 @@ class iSurveyTools:
                 err2 = "Database: " + str(master_file_path) + " does not exist and will be created. Continue..."
                 print(err2)
             if conn is None:
-                print("Error! cannot create the database connection.")
+                msg = "Cant't connect to Masterfile. Is some other program connected to it and blocking it? Exiting..."
+                print(msg)
+                QgsMessageLog.logMessage(
+                    'Task "{name}" Exception: {exception}'.format(
+                        name="initDBConnection",
+                        exception="Cant't connect to Masterfile. Is some other program connected to it and blocking it?\ Exiting..."),
+                    MESSAGE_CATEGORY, Qgis.Critical)
                 QMessageBox.critical(self.dlg,
-                                     'Import Masterfile error',
-                                     "Cant't connect to Masterfile. Is some other program connected to it and blocking it?\nExiting...")
+                                     'Import Masterfile error', msg)
             return conn
         else:
             print("File does not exist")
+            QgsMessageLog.logMessage(
+                'Task "{name}" not successful. Masterfile path does not exist: "{master_file_path}"'.format(
+                    name="initDBConnection",
+                    master_file_path=master_file_path),
+                    MESSAGE_CATEGORY, Qgis.Warning)
             return None
 
     def validateMasterfile(self):
@@ -663,7 +696,12 @@ class iSurveyTools:
             else:
                 point_dist.append(PointList[index].distance(PointList[index - 1]))
                 point_dist_tot.append(point_dist_tot[index - 1] + PointList[index].distance(PointList[index - 1]))
+            row[0] = row[0].strip('"')
 
+            if len(row) > 13:
+                row[7] = row[7].strip('"')
+                row[10] = row[10].strip('"')
+                row[12] = row[12].strip('"')
             attributes_list = row.tolist()
             attributes_list.insert(0, index)
             point_feature.setAttributes(attributes_list)
@@ -877,7 +915,7 @@ class iSurveyTools:
 
             elif file_extension == ('.wp2' or '.WP2'):
                 print("Importing WP2 file")
-                df = pd.read_csv(eiva_file, sep=';', skip_blank_lines=True, comment='#', names=['Name', 'Easting', 'Northing', 'Altitude', 'fgcolor_palette', 'bgcolor_palette', 'textcolor_palette', 'fontname', 'fontsize', 'symbol_filled', 'symbolfont', 'symbolfontsize', 'note', 'titleformat', 'radius', 'extracircles', 'radiusinc', 'state', 'param17', 'param18'], engine='python')
+                df = pd.read_csv(eiva_file, sep=';|,', skip_blank_lines=True, comment='#', names=['Name', 'Easting', 'Northing', 'Altitude', 'fgcolor_palette', 'bgcolor_palette', 'textcolor_palette', 'fontname', 'fontsize', 'symbol_filled', 'symbolfont', 'symbolfontsize', 'note', 'titleformat', 'radius', 'extracircles', 'radiusinc', 'state', 'param17', 'param18'], engine='python')
                 self.add_waypoints_to_proj(df, epsg_code, str(self.eiva_dlg.layer_name.value()))
                 print("Finished importing WP2 file")
 
@@ -1078,6 +1116,7 @@ class iSurveyTools:
     def check_event_linking(self, df_copy, start_code, end_code):
         start_code = str(start_code)
         end_code = str(end_code)
+        print(df_copy)
         df_copy.loc[:, 'QC'] = np.nan
         df_copy.loc[::1, 'QC'] = end_code
         df_copy.loc[::2, 'QC'] = start_code
@@ -1219,9 +1258,16 @@ class iSurveyTools:
                             node.setItemVisibilityChecked(False)
 
                     self.iface.zoomToActiveLayer()
-                    QMessageBox.information(self.iface.mainWindow(),
-                                         'Sucessfully Imported Runline',
-                                         "Sucessfully imported Runline as layer: \n MasterFile_Runline")
+                    msg = "Sucessfully imported Runline as layer: MasterFile_Runline"
+                    QgsMessageLog.logMessage(
+                        'Task "{name}" completed\n'
+                        '"{msg}")'.format(
+                            name="Import Runline",
+                            msg=msg),
+                        MESSAGE_CATEGORY, Qgis.Success)
+                    # QMessageBox.information(self.iface.mainWindow(),
+                    #                      'Sucessfully Imported Runline',
+                    #                      "Sucessfully imported Runline as layer: \n MasterFile_Runline")
 
             if self.dlg.cB_aslaid.isChecked():
                 conn = self.initDBConnection()
@@ -1250,9 +1296,16 @@ class iSurveyTools:
                     if not mylayer.isValid():
                         print("Layer is not valid")
                     project.addMapLayer(mylayer)
-                    QMessageBox.information(self.iface.mainWindow(),
-                                         'Sucessfully Imported As-Laid',
-                                         "Sucessfully imported As-Laid as layer: \n MasterFileAs-Laid")
+                    msg = "Sucessfully imported As-Laid as layer: MasterFileAs-Laid"
+                    QgsMessageLog.logMessage(
+                        'Task "{name}" completed\n'
+                        '"{msg}")'.format(
+                            name="Import As-Laid",
+                            msg=msg),
+                        MESSAGE_CATEGORY, Qgis.Success)
+                    # QMessageBox.information(self.iface.mainWindow(),
+                    #                      'Sucessfully Imported As-Laid',
+                    #                      "Sucessfully imported As-Laid as layer: \n MasterFileAs-Laid")
 
                     """
                     Adding line feature based on the points, qgis:pointstopath
@@ -1346,9 +1399,16 @@ class iSurveyTools:
                         if node:
                             node.setItemVisibilityChecked(False)
                         self.iface.zoomToActiveLayer()
-                    QMessageBox.information(self.iface.mainWindow(),
-                                            'Sucessfully Imported Trencher Track',
-                                            "Sucessfully imported Trencher Track as layer: \n MF Trencher Track")
+                    msg = "Sucessfully imported Trencher Track as layer: MF Trencher Track"
+                    QgsMessageLog.logMessage(
+                        'Task "{name}" completed\n'
+                        '"{msg}")'.format(
+                            name="Import Trencher Track",
+                            msg=msg),
+                        MESSAGE_CATEGORY, Qgis.Success)
+                    # QMessageBox.information(self.iface.mainWindow(),
+                    #                         'Sucessfully Imported Trencher Track',
+                    #                         "Sucessfully imported Trencher Track as layer: \n MF Trencher Track")
 
             if self.dlg.cB_astrenched.isChecked():
                 conn = self.initDBConnection()
@@ -1420,10 +1480,16 @@ class iSurveyTools:
                         if node:
                             node.setItemVisibilityChecked(False)
                         self.iface.zoomToActiveLayer()
-
-                    QMessageBox.information(self.iface.mainWindow(),
-                                            'Sucessfully Imported As-Trenched Pipe Pos',
-                                            "Sucessfully imported As-Trenched Pipe Pos as layer: \n MasterFile As-Trenched Pipe Pos")
+                    msg = "Sucessfully imported As-Trenched Pipe Pos as layer: MF As-Trenched Pipe Pos"
+                    QgsMessageLog.logMessage(
+                        'Task "{name}" completed\n'
+                        '"{msg}")'.format(
+                            name="Import As-Trenched",
+                            msg=msg),
+                        MESSAGE_CATEGORY, Qgis.Success)
+                    # QMessageBox.information(self.iface.mainWindow(),
+                    #                         'Sucessfully Imported As-Trenched Pipe Pos',
+                    #                         "Sucessfully imported As-Trenched Pipe Pos as layer: \n MasterFile As-Trenched Pipe Pos")
 
             if self.dlg.cB_events.isChecked():
                 conn = self.initDBConnection()
@@ -1475,8 +1541,11 @@ class iSurveyTools:
                                              "ORDER BY kp ASC"
                         try:
                             df_freespan = pd.read_sql(sql_query_freespan, conn)
-                            df_linked_freespans = self.check_event_linking(df_freespan, 'FS', 'FE')
-                            self.add_linked_events_to_proj(df_linked_freespans, epsg_code, 'Linked Events: Freespans')
+                            if df_freespan.empty:
+                                print("No Freespan Events")
+                            else:
+                                df_linked_freespans = self.check_event_linking(df_freespan, 'FS', 'FE')
+                                self.add_linked_events_to_proj(df_linked_freespans, epsg_code, 'Linked Events: Freespans')
                         except pd.io.sql.DatabaseError as e:
                             QMessageBox.critical(self.dlg,
                                                  'Import Linked Events: Freespans',
@@ -1490,8 +1559,11 @@ class iSurveyTools:
                                               "ORDER by kp ASC;"
                         try:
                             df_exposures = pd.read_sql(sql_query_exposures, conn)
-                            df_linked_exposures = self.check_event_linking(df_exposures, 'ES', 'EE')
-                            self.add_linked_events_to_proj(df_linked_exposures, epsg_code, 'Linked Events: Exposures')
+                            if df_exposures.empty:
+                                print("No Freespan Events")
+                            else:
+                                df_linked_exposures = self.check_event_linking(df_exposures, 'ES', 'EE')
+                                self.add_linked_events_to_proj(df_linked_exposures, epsg_code, 'Linked Events: Exposures')
                         except pd.io.sql.DatabaseError as e:
                             QMessageBox.critical(self.dlg,
                                                  'Import Linked Events: Exposures',
@@ -1505,8 +1577,11 @@ class iSurveyTools:
                                          "ORDER by kp ASC;"
                         try:
                             df_sids = pd.read_sql(sql_query_sids, conn)
-                            df_linked_sids = self.check_event_linking(df_sids, 'SIDS', 'SIDE')
-                            self.add_linked_events_to_proj(df_linked_sids, epsg_code, 'Linked Events: SID')
+                            if df_sids.empty:
+                                print("No Freespan Events")
+                            else:
+                                df_linked_sids = self.check_event_linking(df_sids, 'SIDS', 'SIDE')
+                                self.add_linked_events_to_proj(df_linked_sids, epsg_code, 'Linked Events: SID')
                         except pd.io.sql.DatabaseError as e:
                             QMessageBox.critical(self.dlg,
                                                  'Import Linked Events: SID',
@@ -1521,8 +1596,11 @@ class iSurveyTools:
                                           "ORDER by kp ASC;"
                         try:
                             df_pumps = pd.read_sql(sql_query_pumps, conn)
-                            df_linked_pumps = self.check_event_linking(df_pumps, 'PST', 'PSP')
-                            self.add_linked_events_to_proj(df_linked_pumps, epsg_code, 'Linked Events: PUMPS')
+                            if df_pumps.empty:
+                                print("No Freespan Events")
+                            else:
+                                df_linked_pumps = self.check_event_linking(df_pumps, 'PST', 'PSP')
+                                self.add_linked_events_to_proj(df_linked_pumps, epsg_code, 'Linked Events: PUMPS')
                         except pd.io.sql.DatabaseError as e:
                             QMessageBox.critical(self.dlg,
                                                  'Import Linked Events: PUMPS',
@@ -1531,9 +1609,16 @@ class iSurveyTools:
                                                      e) + "\n\nSkipping this linked layer")
                             pass
                     self.iface.zoomToActiveLayer()
-                    QMessageBox.information(self.iface.mainWindow(),
-                                         'Sucessfully Imported Events',
-                                         "Sucessfully imported Events as layer: \n MasterFile Events")
+                    msg = "Sucessfully imported Events as layer: MF Events"
+                    QgsMessageLog.logMessage(
+                        'Task "{name}" completed\n'
+                        '"{msg}")'.format(
+                            name="Import Events",
+                            msg=msg),
+                        MESSAGE_CATEGORY, Qgis.Success)
+                    # QMessageBox.information(self.iface.mainWindow(),
+                    #                      'Sucessfully Imported Events',
+                    #                      "Sucessfully imported Events as layer: \n MasterFile Events")
 
             if self.dlg.cB_capjet_tid.isChecked():
                 conn = self.initDBConnection()
@@ -1595,10 +1680,16 @@ class iSurveyTools:
                     if node:
                         node.setItemVisibilityChecked(False)
                     self.iface.zoomToActiveLayer()
-
-                    QMessageBox.information(self.iface.mainWindow(),
-                                            'Sucessfully Imported Trencher Track TID' + str(tid_nr),
-                                            "Sucessfully imported Trencher Track as layer: \n TID%s Trencher Track_Line" % str(tid_nr))
+                    msg = "Sucessfully imported Trencher Track as layer: \n TID" + str(tid_nr) + " Trencher Track_Line"
+                    QgsMessageLog.logMessage(
+                    'Task "{name}" completed\n'
+                    '"{msg}")'.format(
+                        name="Import TID",
+                        msg=msg),
+                    MESSAGE_CATEGORY, Qgis.Success)
+                    # QMessageBox.information(self.iface.mainWindow(),
+                    #                         'Sucessfully Imported Trencher Track TID' + str(tid_nr),
+                    #                         "Sucessfully imported Trencher Track as layer: \n TID%s Trencher Track_Line" % str(tid_nr))
 
             if self.dlg.cB_astrenched_sid.isChecked():
                 conn = self.initDBConnection()
@@ -1658,9 +1749,171 @@ class iSurveyTools:
                     if node:
                         node.setItemVisibilityChecked(False)
                     self.iface.zoomToActiveLayer()
-                    QMessageBox.information(self.iface.mainWindow(),
-                                            'Sucessfully Imported',
-                                            "Sucessfully imported As-Trenched Pipe Pos as layer: \n SID%s AT-X Pipe Pos_Line" % str(sid_nr))
+                    msg = "Sucessfully imported As-Trenched Pipe Pos as layer: SID" + str(sid_nr) + " AT-X Pipe Pos_Line"
+                    QgsMessageLog.logMessage(
+                        'Task "{name}" completed\n'
+                        '"{msg}")'.format(
+                            name="Import SIDs",
+                            msg=msg),
+                        MESSAGE_CATEGORY, Qgis.Success)
+                    # QMessageBox.information(self.iface.mainWindow(),
+                    #                         'Sucessfully Imported',
+                    #                         "Sucessfully imported As-Trenched Pipe Pos as layer: \n SID%s AT-X Pipe Pos_Line" % str(sid_nr))
                 print("Sucessfully Finished Program")
 
         self.close_master_file_connect_signals()
+
+    def run_exportDialog(self):
+        print("Running Export Dialogue")
+        """Run method that performs all the real work"""
+        # Create the dialog with elements (after translation) and keep reference
+        # Only create GUI ONCE in callback, so that it will only load when the plugin is started
+        if self.export_first_start:
+            self.export_first_start = False
+            self.export_dlg = loadExportDialog()
+        else:
+            self.close_export_dlg()
+
+        self.export_dlg.pB_Browse.clicked.connect(self.open_select_export_folder)
+        self.export_dlg.pB_Refresh.clicked.connect(self.export_dlg_refresh)
+        self.export_dlg.pB_Export.clicked.connect(self.export_dlg_export)
+        self.export_dlg.pB_Cancel.clicked.connect(self.close_export_dlg)
+        self.export_dlg_refresh()
+        # show the dialog
+        self.export_dlg.show()
+        # Run the dialog event loop
+        # result = self.export_dlg.exec_()
+
+    def export_dlg_refresh(self):
+        self.export_dlg.comboBoxPointLayers.clear()
+        layers = QgsProject.instance().mapLayers()
+
+        for layer_id, layer in layers.items():
+            if isinstance(layer, QgsVectorLayer):
+                self.export_dlg.comboBoxPointLayers.addItem(str(layer.name()))
+
+    def export_dlg_export(self):
+        # name = self.export_dlg.comboBoxPointLayers.currentText()
+        # export_path = self.export_dlg.export_path.value()
+        if not os.path.isdir(self.export_dlg.export_path.value()):
+            os.makedirs(self.export_dlg.export_path.value())
+        if not path.exists(self.export_dlg.export_path.value()):
+            # print("File exists")
+            msg = "Export Directory does not exists: " + str(self.export_dlg.export_path.value()) + " Aborting..."
+            QgsMessageLog.logMessage(msg, MESSAGE_CATEGORY, Qgis.Critical)
+            QMessageBox.critical(self.export_dlg,
+                                 'Export WP2 error', msg)
+            return
+
+        export_path = os.path.join(self.export_dlg.export_path.value(), str(self.export_dlg.export_name.value()) + ".wp2")
+
+        if len(QgsProject.instance().mapLayersByName(str(self.export_dlg.comboBoxPointLayers.currentText()))) != 1:
+            print("Two layers has the same name, choosing the first one")
+        elif len(QgsProject.instance().mapLayersByName(str(self.export_dlg.comboBoxPointLayers.currentText()))) == 0:
+            print("No layers with the given name, strange....")
+        selected_layer = QgsProject.instance().mapLayersByName(str(self.export_dlg.comboBoxPointLayers.currentText()))[0]
+
+        iface.setActiveLayer(selected_layer)
+        data = []
+        qc_code = 0
+        for feature in selected_layer.getFeatures():
+            # feature name is Case insensitive
+            if len(feature.attributes()) > 3:
+                field_index = selected_layer.fields().indexFromName("Name")
+                if field_index == -1:
+                    field_index = selected_layer.fields().indexFromName("event_description")
+                    if field_index == -1:
+                        name = feature.attributes()[1]
+                        qc_code = 2
+                    else:
+                        name = feature["event_description"]
+                else:
+                    name = feature["name"]
+                field_index = selected_layer.fields().indexFromName("easting")
+                if field_index == -1:
+                    field_index = selected_layer.fields().indexFromName("Easting")
+                    if field_index == -1:
+                        east = feature.attributes()[2]
+                        qc_code = 3
+                    else:
+                        east = feature["Easting"]
+                else:
+                    east = feature["easting"]
+                field_index = selected_layer.fields().indexFromName("northing")
+                if field_index == -1:
+                    field_index = selected_layer.fields().indexFromName("Northing")
+                    if field_index == -1:
+                        north = feature.attributes()[3]
+                        qc_code = 4
+                    else:
+                        north = feature["Northing"]
+                else:
+                    north = feature["northing"]
+                data.append([name, east, north])
+            else:
+                qc_code = 1
+                print("layer does not have enough attributes")
+            # print(element)
+        depth = 0
+        fg_color = 0
+        bg_color = 0
+        # todo: Not really needed to include all parameters, pos + depth is good enough
+        # todo: consider including color-palette for forgeground/background
+        extra_param = [depth, fg_color, bg_color, 0.1, "Arial", 0.00, -10.1, "", 0.00, "", 1, 0.000, 0.000, 0.000, 0.05]
+
+        column_names = ['name', 'easting', 'northing', 'altitude', 'fgcolor.palette',
+                        'bgcolor.palette', 'textcolor.palette', 'fontname', 'fontsize',
+                        'symbol.filled', 'symbolfont', 'symbolfontsize', 'note', 'titleformat',
+                        'radius', 'extra circles', 'radiusinc', 'state']
+        new_list = []
+
+        for lin in data:
+            lin = lin + extra_param
+            new_list.append(lin)
+
+        df = pd.DataFrame(new_list, columns=column_names)
+        # print(df.head(5))
+        df.to_csv(export_path, index=False, header=False, quoting=csv.QUOTE_NONNUMERIC)
+        if qc_code > 0:
+            QMessageBox.critical(self.export_dlg,
+                                 'WP2 Export',
+                                 "It was exported a WP2 file, but it seems like something went wrong. Please check the exported file.\nExport functions works for MF Event layer, imported WP2/WPT files.\n\nQC_code " + str(qc_code))
+        else:
+            msg = "Successfully exported WP2 file to: " + str(export_path)
+            print(msg)
+            QgsMessageLog.logMessage(msg, MESSAGE_CATEGORY, Qgis.Success)
+        # button_reply = QMessageBox.question(self.export_dlg,'Successfully exported WP2 file',
+        #                                     "Do you want to open the exported file in default texteditor?",
+        #                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        # if button_reply == QMessageBox.Yes:
+        #     # webbrowser.open(export_path)
+        #     os.popen('notepad ' + export_path)
+        # else:
+        #     ''' Do not open file'''
+        msgbox = QMessageBox()
+        msgbox.setWindowTitle("Successfully exported WP2 file")
+        msgbox.setText('Do you want to open the exported file in Notepad for QC?')
+        msgbox.addButton(QMessageBox.Yes)
+        msgbox.addButton(QMessageBox.Cancel)
+
+        msgbox.addButton('Open Folder', QMessageBox.YesRole)
+        bttn = msgbox.exec_()
+        if bttn == 16384:
+            ''' YES'''
+            # os.popen('notepad ' + export_path)
+            subprocess.call(['notepad.exe', export_path])
+        elif bttn == 4194304:
+            '''Cancel'''
+        elif bttn == 0:
+            ''' Open Folder'''
+            # os.popen('explorer ' + os.path.dirname(export_path))
+            subprocess.call(['explorer', os.path.dirname(export_path)])
+
+    def close_export_dlg(self):
+        try:
+            self.export_dlg.pB_Browse.clicked.disconnect(self.open_select_export_folder)
+            self.export_dlg.pB_Refresh.clicked.disconnect(self.export_dlg_refresh)
+            self.export_dlg.pB_Export.clicked.disconnect(self.export_dlg_export)
+            self.export_dlg.pB_Cancel.clicked.disconnect(self.export_dlg.close())
+        except:
+            print("Didnt have to disconnect")
