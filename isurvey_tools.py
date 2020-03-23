@@ -1795,6 +1795,12 @@ class iSurveyTools:
     def export_dlg_export(self):
         # name = self.export_dlg.comboBoxPointLayers.currentText()
         # export_path = self.export_dlg.export_path.value()
+        if self.export_dlg.export_path.value() == '':
+            msg = "Export Directory does not exists: " + str(self.export_dlg.export_path.value()) + " Aborting..."
+            QgsMessageLog.logMessage(msg, MESSAGE_CATEGORY, Qgis.Critical)
+            QMessageBox.critical(self.export_dlg,
+                                 'Export WP2 error', msg)
+            return
         if not os.path.isdir(self.export_dlg.export_path.value()):
             os.makedirs(self.export_dlg.export_path.value())
         if not path.exists(self.export_dlg.export_path.value()):
