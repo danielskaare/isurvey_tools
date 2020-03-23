@@ -22,7 +22,7 @@
  ***************************************************************************/
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QVariant
-from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtGui import QIcon, QColor
 from qgis.PyQt.QtWidgets import QAction
 from qgis.utils import iface # 2020-02-09 kele
 import csv
@@ -31,7 +31,8 @@ import csv
 import subprocess
 import sqlite3, sys
 import pandas as pd
-from qgis.core import Qgis, QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
+from osgeo import gdal
+from qgis.core import QgsRasterShader, QgsRasterLayer, QgsColorRampShader, QgsSingleBandPseudoColorRenderer, Qgis, QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
 from urllib.request import pathname2url
 from os import path
 from pathlib import Path
@@ -239,7 +240,7 @@ class iSurveyTools:
             self.populate_tid_and_sid_list()
 
     def open_select_eiva(self):
-        File,_ = QFileDialog.getOpenFileName(self.eiva_dlg, "Open EIVA files", "", "Runlines (*.rln *.rlx);;Track (*.etr);;Waypoints (*.wpt *.wp2);;All Files (*)")
+        File,_ = QFileDialog.getOpenFileName(self.eiva_dlg, "Open EIVA files", "", "Runlines (*.rln *.rlx);;Track (*.etr);;Waypoints (*.wpt *.wp2);;XYZ Files (*.xyz);;All Files (*)")
         # self.eiva_dlg
         if File:
             self.eiva_dlg.path_eiva_file.setText(os.path.abspath(File))
@@ -304,7 +305,7 @@ class iSurveyTools:
                 QgsMessageLog.logMessage(
                     'Task "{name}" Exception: {exception}'.format(
                         name="initDBConnection",
-                        exception="Cant't connect to Masterfile. Is some other program connected to it and blocking it?\ Exiting..."),
+                        exception=msg),
                     MESSAGE_CATEGORY, Qgis.Critical)
                 QMessageBox.critical(self.dlg,
                                      'Import Masterfile error', msg)
@@ -730,6 +731,90 @@ class iSurveyTools:
         if node:
             node.setItemVisibilityChecked(True)
 
+    def add_xyz_to_proj(self, xyz_filename, epsg_code, name):
+        params_gdal_translate = "-of GTiff -b 1 -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 -a_srs " + str(epsg_code)
+        params_gdaldem_hillshade = "-of GTiff -b 1 -z 1.0 -s 1.0 -az 315.0 -alt 45.0 -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9"
+        src_ds = gdal.Open(xyz_filename)
+        translate_options = gdal.TranslateOptions(gdal.ParseCommandLine(params_gdal_translate))
+        translate_options_dem = gdal.DEMProcessingOptions(gdal.ParseCommandLine(params_gdaldem_hillshade))
+        export_path = os.path.join(os.path.dirname(xyz_filename), name + ".tif")
+        export_path_dem = os.path.join(os.path.dirname(xyz_filename), name + "_Hillshade.tif")
+        try:
+            gdal.Translate(export_path, src_ds, options=translate_options)
+        except ValueError as e:
+            msgBox = QMessageBox()
+            msgBox.setIcon(QMessageBox.Information)
+
+            msgBox.setText("Looks like the XYZ file is not SORTED. Try to SORT?")
+            msgBox.setInformativeText(
+                "This will take a while and create a new XYZ file in same folder")
+            msgBox.setWindowTitle("Import XYZ in QGIS")
+            # msg.setDetailedText("The details are as follows:")
+            msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
+            # msg.buttonClicked.connect(msgbtn)
+
+            retval = msgBox.exec_()
+            if retval == 16384:
+                sorted_fn = os.path.join(os.path.dirname(xyz_filename), name + "_sorted.xyz")
+                sort_arr = self.sort_xyz(xyz_filename, sorted_fn, True)
+                src_ds = gdal.Open(sorted_fn)
+                try:
+                    gdal.Translate(export_path, src_ds, options=translate_options)
+                except ValueError as e:
+                    msg = "GDAL Translate failed also for SORTED XYZ, Try to properly re-export XYZ from NaviModel... Aborting... : " + str(
+                        e)
+                    QMessageBox.critical(self.iface.mainWindow(),
+                                         'Import Eiva XYZ File', msg)
+                    return
+            elif retval == 65536:
+                print("Aborting")
+                return
+            elif retval == 4194304:
+                print("Aborting")
+                return
+
+        gdal.DEMProcessing(export_path_dem, export_path, processing='hillshade', options=translate_options_dem)
+        fcn = QgsColorRampShader()
+        fcn.setColorRampType(QgsColorRampShader.Interpolated)
+        lst = [QgsColorRampShader.ColorRampItem(0, QColor(255, 0, 0)),
+               QgsColorRampShader.ColorRampItem(64, QColor(255, 128, 0)),
+               QgsColorRampShader.ColorRampItem(128, QColor(255, 255, 100)),
+               QgsColorRampShader.ColorRampItem(192, QColor(153, 255, 153)),
+               QgsColorRampShader.ColorRampItem(255, QColor(0, 0, 255))]
+        fcn.setColorRampItemList(lst)
+        shader = QgsRasterShader()
+        shader.setRasterShaderFunction(fcn)
+
+        rlayer = iface.addRasterLayer(export_path)
+        rlayer_hillshade = iface.addRasterLayer(export_path_dem)
+
+        renderer = QgsSingleBandPseudoColorRenderer(rlayer.dataProvider(), 1, shader)
+        rlayer.setRenderer(renderer)
+        rlayer_hillshade.renderer().setOpacity(0.6)
+        # rlayer.setCacheImage(None)
+        # rlayer_hillshade.setCacheImage(None)
+        rlayer.triggerRepaint()
+        rlayer_hillshade.triggerRepaint()
+
+        print(rlayer.renderer().type())
+        print(rlayer_hillshade.renderer().type())
+        print("Imported GeoTiff file: " + str(export_path) + " with parameters: " + str(params_gdal_translate))
+        print("Imported Hillshade GeoTiff file: " + str(export_path_dem) + " with parameters: " + str(params_gdaldem_hillshade))
+        src_ds = None
+        export_path = None
+
+    def sort_xyz(self, src_filename1, src_sorted_filename, exp_sorted):
+        with open(src_filename1, mode='rt') as f, open(src_sorted_filename, 'w', newline='') as final:
+            writer = csv.writer(final, delimiter=' ')
+            reader = csv.reader(f, delimiter=' ')
+            _ = next(reader)
+            sorted1 = sorted(reader, key=lambda row1: float(row1[0]), reverse=False)
+            sorted2 = sorted(sorted1, key=lambda row1: float(row1[1]), reverse=True)
+            if exp_sorted:
+                for row1 in sorted2:
+                    writer.writerow(row1)
+        return sorted2
+
     def add_linked_events_to_proj(self, df_linked_event, epsg_code, name):
         conn = self.initDBConnection()
         if conn is None:
@@ -919,6 +1004,10 @@ class iSurveyTools:
                 self.add_waypoints_to_proj(df, epsg_code, str(self.eiva_dlg.layer_name.value()))
                 print("Finished importing WP2 file")
 
+            elif file_extension == ('.xyz' or '.XYZ'):
+                print("Importing XYZ file")
+                self.add_xyz_to_proj(eiva_file, epsg_code, str(self.eiva_dlg.layer_name.value()))
+                print("Finished importing XYZ file")
             else:
                 err_text = "File Format: " + str(file_extension) +  " is NOT supported. CURRENTLY SUPPORTED FORMATS: RLN, RLX, ETR, WP2 and WPT \nExiting..."
                 print(err_text)
@@ -928,7 +1017,11 @@ class iSurveyTools:
                 self.eiva_dlg.open_folder.clicked.disconnect(self.open_select_eiva)
             self.iface.zoomToActiveLayer()
 
-        self.eiva_dlg.open_folder.clicked.disconnect(self.open_select_eiva)
+        try:
+            self.eiva_dlg.open_folder.clicked.disconnect(self.open_select_eiva)
+        except TypeError as e:
+            ''' Not needed to run this.. '''
+            return
 
     def create_categorized_layers(self, r_layer, id_attr):
         id_attr = str(id_attr)
