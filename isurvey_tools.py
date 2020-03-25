@@ -32,7 +32,7 @@ import subprocess
 import sqlite3, sys
 import pandas as pd
 from osgeo import gdal
-from qgis.core import QgsRasterShader, QgsRasterLayer, QgsColorRampShader, QgsSingleBandPseudoColorRenderer, Qgis, QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
+from qgis.core import QgsWkbTypes, QgsRasterShader, QgsRasterLayer, QgsColorRampShader, QgsSingleBandPseudoColorRenderer, Qgis, QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
 from urllib.request import pathname2url
 from os import path
 from pathlib import Path
@@ -57,7 +57,7 @@ from .resources import *
 # Import the code for the dialog
 from .isurvey_tools_dialog import iSurveyToolsDialog, loadEivaDialog, loadExportDialog
 import os.path
-MESSAGE_CATEGORY = 'MasterFile import'
+MESSAGE_CATEGORY = 'iSurvey Toolbox'
 
 class iSurveyTools:
     """QGIS Plugin Implementation."""
@@ -1653,7 +1653,7 @@ class iSurveyTools:
                         try:
                             df_exposures = pd.read_sql(sql_query_exposures, conn)
                             if df_exposures.empty:
-                                print("No Freespan Events")
+                                print("No Exposure Events")
                             else:
                                 df_linked_exposures = self.check_event_linking(df_exposures, 'ES', 'EE')
                                 self.add_linked_events_to_proj(df_linked_exposures, epsg_code, 'Linked Events: Exposures')
@@ -1671,7 +1671,7 @@ class iSurveyTools:
                         try:
                             df_sids = pd.read_sql(sql_query_sids, conn)
                             if df_sids.empty:
-                                print("No Freespan Events")
+                                print("No SIDS Events")
                             else:
                                 df_linked_sids = self.check_event_linking(df_sids, 'SIDS', 'SIDE')
                                 self.add_linked_events_to_proj(df_linked_sids, epsg_code, 'Linked Events: SID')
@@ -1690,7 +1690,7 @@ class iSurveyTools:
                         try:
                             df_pumps = pd.read_sql(sql_query_pumps, conn)
                             if df_pumps.empty:
-                                print("No Freespan Events")
+                                print("No PUMP Events")
                             else:
                                 df_linked_pumps = self.check_event_linking(df_pumps, 'PST', 'PSP')
                                 self.add_linked_events_to_proj(df_linked_pumps, epsg_code, 'Linked Events: PUMPS')
@@ -1872,10 +1872,18 @@ class iSurveyTools:
         self.export_dlg.pB_Export.clicked.connect(self.export_dlg_export)
         self.export_dlg.pB_Cancel.clicked.connect(self.close_export_dlg)
         self.export_dlg_refresh()
+        self.export_dlg.comboBoxPointLayers.currentIndexChanged.connect(self.build_name_attr_comboBox)
+        self.export_dlg.cB_NoNameAttr.clicked.connect(self.export_on_state_changed)
         # show the dialog
         self.export_dlg.show()
         # Run the dialog event loop
         # result = self.export_dlg.exec_()
+
+    def export_on_state_changed(self):
+        if self.export_dlg.cB_NoNameAttr.isChecked():
+            self.export_dlg.comboBoxNameAttr.setEnabled(False)
+        else:
+            self.export_dlg.comboBoxNameAttr.setEnabled(True)
 
     def export_dlg_refresh(self):
         self.export_dlg.comboBoxPointLayers.clear()
@@ -1884,6 +1892,8 @@ class iSurveyTools:
         for layer_id, layer in layers.items():
             if isinstance(layer, QgsVectorLayer):
                 self.export_dlg.comboBoxPointLayers.addItem(str(layer.name()))
+
+        # self.build_name_attr_comboBox()
 
     def export_dlg_export(self):
         # name = self.export_dlg.comboBoxPointLayers.currentText()
@@ -1904,83 +1914,178 @@ class iSurveyTools:
                                  'Export WP2 error', msg)
             return
 
-        export_path = os.path.join(self.export_dlg.export_path.value(), str(self.export_dlg.export_name.value()) + ".wp2")
+        export_path = os.path.join(self.export_dlg.export_path.value(), str(self.export_dlg.export_name.value()) )
 
-        if len(QgsProject.instance().mapLayersByName(str(self.export_dlg.comboBoxPointLayers.currentText()))) != 1:
+        if len(QgsProject.instance().mapLayersByName(str(self.export_dlg.comboBoxPointLayers.currentText()))) == 0:
+            print("Layer list is empty...")
+            return
+        elif len(QgsProject.instance().mapLayersByName(str(self.export_dlg.comboBoxPointLayers.currentText()))) > 1:
             print("Two layers has the same name, choosing the first one")
-        elif len(QgsProject.instance().mapLayersByName(str(self.export_dlg.comboBoxPointLayers.currentText()))) == 0:
-            print("No layers with the given name, strange....")
+
         selected_layer = QgsProject.instance().mapLayersByName(str(self.export_dlg.comboBoxPointLayers.currentText()))[0]
 
         iface.setActiveLayer(selected_layer)
         data = []
         qc_code = 0
-        for feature in selected_layer.getFeatures():
-            # feature name is Case insensitive
-            if len(feature.attributes()) > 3:
-                field_index = selected_layer.fields().indexFromName("Name")
-                if field_index == -1:
-                    field_index = selected_layer.fields().indexFromName("event_description")
-                    if field_index == -1:
-                        name = feature.attributes()[1]
-                        qc_code = 2
-                    else:
-                        name = feature["event_description"]
-                else:
-                    name = feature["name"]
-                field_index = selected_layer.fields().indexFromName("easting")
-                if field_index == -1:
-                    field_index = selected_layer.fields().indexFromName("Easting")
-                    if field_index == -1:
-                        east = feature.attributes()[2]
-                        qc_code = 3
-                    else:
-                        east = feature["Easting"]
-                else:
-                    east = feature["easting"]
-                field_index = selected_layer.fields().indexFromName("northing")
-                if field_index == -1:
-                    field_index = selected_layer.fields().indexFromName("Northing")
-                    if field_index == -1:
-                        north = feature.attributes()[3]
-                        qc_code = 4
-                    else:
-                        north = feature["Northing"]
-                else:
-                    north = feature["northing"]
-                data.append([name, east, north])
+        # for feature in selected_layer.getFeatures():
+        #     # feature name is Case insensitive
+        #     if len(feature.attributes()) > 3:
+        #         field_index = selected_layer.fields().indexFromName("Name")
+        #         if field_index == -1:
+        #             field_index = selected_layer.fields().indexFromName("event_description")
+        #             if field_index == -1:
+        #                 name = feature.attributes()[1]
+        #                 qc_code = 2
+        #             else:
+        #                 name = feature["event_description"]
+        #         else:
+        #             name = feature["name"]
+        #         field_index = selected_layer.fields().indexFromName("easting")
+        #         if field_index == -1:
+        #             field_index = selected_layer.fields().indexFromName("Easting")
+        #             if field_index == -1:
+        #                 east = feature.attributes()[2]
+        #                 qc_code = 3
+        #             else:
+        #                 east = feature["Easting"]
+        #         else:
+        #             east = feature["easting"]
+        #         field_index = selected_layer.fields().indexFromName("northing")
+        #         if field_index == -1:
+        #             field_index = selected_layer.fields().indexFromName("Northing")
+        #             if field_index == -1:
+        #                 north = feature.attributes()[3]
+        #                 qc_code = 4
+        #             else:
+        #                 north = feature["Northing"]
+        #         else:
+        #             north = feature["northing"]
+        #         data.append([name, east, north])
+        #     else:
+        #         qc_code = 1
+        #         print("layer does not have enough attributes")
+        #     # print(element)
+        ''' Go through all layer types and extract eastings, northings and name'''
+        for feat_num, feature in enumerate(selected_layer.getFeatures()):
+            # show some information about the feature
+            geom = feature.geometry()
+            # print(geom.get())
+            if self.export_dlg.cB_NoNameAttr.isChecked():
+                name = "Feature" + str(feat_num)
             else:
-                qc_code = 1
-                print("layer does not have enough attributes")
-            # print(element)
-        depth = 0
-        fg_color = 0
-        bg_color = 0
-        # todo: Not really needed to include all parameters, pos + depth is good enough
-        # todo: consider including color-palette for forgeground/background
-        extra_param = [depth, fg_color, bg_color, 0.1, "Arial", 0.00, -10.1, "", 0.00, "", 1, 0.000, 0.000, 0.000, 0.05]
+                attr_name = self.export_dlg.comboBoxNameAttr.currentText()
+                if attr_name == '':
+                    QMessageBox.critical(self.export_dlg,
+                                         'Select Name Waypoint', "Check the checkbox or choose a waypoint name")
+                    return
+                else:
+                    name = feature[str(attr_name)]
+            geomSingleType = QgsWkbTypes.isSingleType(geom.wkbType())
+            if geom.type() == QgsWkbTypes.PointGeometry:
+                # the geometry type can be of single or multi type
+                if geomSingleType:
+                    x = geom.asPoint()
+                    # print("Point: ", x.x())
+                    east = x.x()
+                    north = x.y()
+                else:
+                    x = geom.asMultiPoint()
+                    # print("MultiPoint: ", x)
+                    for pnt in x:
+                        east = pnt.x()
+                        north = pnt.y()
+                        # name = str(feat_num) + "_" + str(name)
+                data.append([str(name), east, north])
+            elif geom.type() == QgsWkbTypes.LineGeometry:
+                if geomSingleType:
+                    x = geom.asPolyline()
+                    print("Line: ", x, "length: ", geom.length())
+                    east = x.x()
+                    north = x.y()
+                    data.append([str(name), east, north])
+                else:
+                    x = geom.asMultiPolyline()
+                    # print("MultiLine: ", x, "length: ", geom.length())
+                    ml_num = 0
+                    for line in x:
+                        for pnt in line:
+                            ml_num += 1
+                            east = pnt.x()
+                            north = pnt.y()
+                            # name = "ML" + str(feat_num) + "_Pt" + str(ml_num) + "_" + str(name)
+                            data.append([str(name), east, north])
+            elif geom.type() == QgsWkbTypes.PolygonGeometry:
+                if geomSingleType:
+                    x = geom.asPolygon()
+                    print("Polygon: ", x, "Area: ", geom.area())
+                    ml_num = 0
+                    for line in x:
+                            for pnt in line:
+                                ml_num += 1
+                                east = pnt.x()
+                                north = pnt.y()
+                                # name = "Polygon" + str(feat_num)
+                                data.append([str(name), east, north])
+                else:
+                    x = geom.asMultiPolygon()
+                    # print("MultiPolygon: ", x, "Area: ", geom.area())
+                    ml_num = 0
+                    for line in x:
+                        for what in line:
+                            for pnt in what:
+                                ml_num += 1
+                                east = pnt.x()
+                                north = pnt.y()
+                                # name = "Polygon" + str(feat_num)
+                                data.append([str(name), east, north])
+            else:
+                print("Unknown or invalid geometry")
 
-        column_names = ['name', 'easting', 'northing', 'altitude', 'fgcolor.palette',
-                        'bgcolor.palette', 'textcolor.palette', 'fontname', 'fontsize',
-                        'symbol.filled', 'symbolfont', 'symbolfontsize', 'note', 'titleformat',
-                        'radius', 'extra circles', 'radiusinc', 'state']
-        new_list = []
+        ''' Decide what kind of export should be used'''
+        if self.export_dlg.rB_wp.isChecked():
+            depth = 0
+            fg_color = 0
+            bg_color = 0
+            # todo: Not really needed to include all parameters, pos + depth is good enough
+            # todo: consider including color-palette for forgeground/background
+            extra_param = [depth, fg_color, bg_color, 0.1, "Arial", 0.00, -10.1, "", 0.00, "", 1, 0.000, 0.000, 0.000, 0.05]
 
-        for lin in data:
-            lin = lin + extra_param
-            new_list.append(lin)
+            column_names = ['name', 'easting', 'northing', 'altitude', 'fgcolor.palette',
+                            'bgcolor.palette', 'textcolor.palette', 'fontname', 'fontsize',
+                            'symbol.filled', 'symbolfont', 'symbolfontsize', 'note', 'titleformat',
+                            'radius', 'extra circles', 'radiusinc', 'state']
+            new_list = []
 
-        df = pd.DataFrame(new_list, columns=column_names)
-        # print(df.head(5))
-        df.to_csv(export_path, index=False, header=False, quoting=csv.QUOTE_NONNUMERIC)
-        if qc_code > 0:
-            QMessageBox.critical(self.export_dlg,
-                                 'WP2 Export',
-                                 "It was exported a WP2 file, but it seems like something went wrong. Please check the exported file.\nExport functions works for MF Event layer, imported WP2/WPT files.\n\nQC_code " + str(qc_code))
+            for lin in data:
+                lin = lin + extra_param
+                new_list.append(lin)
+
+            df = pd.DataFrame(new_list, columns=column_names)
+            # print(df.head(5))
+            export_path + ".wp2"
+            df.to_csv(export_path, index=False, header=False, quoting=csv.QUOTE_NONNUMERIC)
+        elif self.export_dlg.rB_dis.isChecked():
+            print("Displayline is selected")
+        elif self.export_dlg.rB_rln.isChecked():
+            print("Runline is selected")
+            df = pd.DataFrame(data, columns=['name', 'easting', 'northing'])
+            export_path = export_path + ".rln"
+            df[['easting', 'northing']].to_csv(export_path, index=False, header=False, quoting=csv.QUOTE_NONNUMERIC)
+        elif self.export_dlg.rB_dig.isChecked():
+            print("Digitized line is selected")
+        elif self.export_dlg.rB_kongs.isChecked():
+            print("Kongsberg export is selected")
         else:
-            msg = "Successfully exported WP2 file to: " + str(export_path)
-            print(msg)
-            QgsMessageLog.logMessage(msg, MESSAGE_CATEGORY, Qgis.Success)
+            print("Radiobutton is not selected, something is wrong...")
+
+        # if qc_code > 0:
+        #     QMessageBox.critical(self.export_dlg,
+        #                          'WP2 Export',
+        #                          "It was exported a WP2 file, but it seems like something went wrong. Please check the exported file.\nExport functions works for MF Event layer, imported WP2/WPT files.\n\nQC_code " + str(qc_code))
+        # else:
+        msg = "Successfully exported WP2 file to: " + str(export_path)
+        print(msg)
+        QgsMessageLog.logMessage(msg, MESSAGE_CATEGORY, Qgis.Success)
         # button_reply = QMessageBox.question(self.export_dlg,'Successfully exported WP2 file',
         #                                     "Do you want to open the exported file in default texteditor?",
         #                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
@@ -2000,19 +2105,33 @@ class iSurveyTools:
         if bttn == 16384:
             ''' YES'''
             # os.popen('notepad ' + export_path)
-            subprocess.call(['notepad.exe', export_path])
+            subprocess.Popen(['notepad.exe', export_path], shell=True,
+             stdin=None, stdout=None, stderr=None, close_fds=True)
         elif bttn == 4194304:
             '''Cancel'''
         elif bttn == 0:
             ''' Open Folder'''
             # os.popen('explorer ' + os.path.dirname(export_path))
-            subprocess.call(['explorer', os.path.dirname(export_path)])
+            subprocess.call(['explorer', os.path.dirname(export_path)], shell=True,
+             stdin=None, stdout=None, stderr=None, close_fds=True)
 
     def close_export_dlg(self):
         try:
             self.export_dlg.pB_Browse.clicked.disconnect(self.open_select_export_folder)
             self.export_dlg.pB_Refresh.clicked.disconnect(self.export_dlg_refresh)
             self.export_dlg.pB_Export.clicked.disconnect(self.export_dlg_export)
-            self.export_dlg.pB_Cancel.clicked.disconnect(self.export_dlg.close())
+            self.export_dlg.comboBoxPointLayers.currentIndexChanged.disconnect(self.build_name_attr_comboBox)
+            self.export_dlg.pB_Cancel.clicked.disconnect(self.close_export_dlg)
+            self.export_dlg.close()
         except:
             print("Didnt have to disconnect")
+
+    def build_name_attr_comboBox(self):
+        layer_name = str(self.export_dlg.comboBoxPointLayers.currentText())
+        print("You selected: " + layer_name)
+        if layer_name != '':
+            selected_layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+            self.export_dlg.comboBoxNameAttr.clear()
+            for field in selected_layer.fields():
+                # print(field.name(), field.typeName())
+                self.export_dlg.comboBoxNameAttr.addItem(str(field.name()))
