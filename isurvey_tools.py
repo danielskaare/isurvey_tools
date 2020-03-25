@@ -2066,15 +2066,20 @@ class iSurveyTools:
             df.to_csv(export_path, index=False, header=False, quoting=csv.QUOTE_NONNUMERIC)
         elif self.export_dlg.rB_dis.isChecked():
             print("Displayline is selected")
+            # TODO: Implement display line function
+
         elif self.export_dlg.rB_rln.isChecked():
             print("Runline is selected")
+            # TODO : Improve RLN export
             df = pd.DataFrame(data, columns=['name', 'easting', 'northing'])
             export_path = export_path + ".rln"
             df[['easting', 'northing']].to_csv(export_path, index=False, header=False, quoting=csv.QUOTE_NONNUMERIC)
         elif self.export_dlg.rB_dig.isChecked():
             print("Digitized line is selected")
+            # TODO: Implement digitized line export
         elif self.export_dlg.rB_kongs.isChecked():
             print("Kongsberg export is selected")
+            # TODO: Implement Kongsberg export
         else:
             print("Radiobutton is not selected, something is wrong...")
 
