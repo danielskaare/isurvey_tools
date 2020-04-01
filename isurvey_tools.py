@@ -28,6 +28,7 @@ from qgis.utils import iface # 2020-02-09 kele
 import csv
 # Import necessary geometric objects from shapely module
 #from shapely.geometry import Point, LineString
+from datetime import datetime
 import subprocess
 import sqlite3, sys
 import pandas as pd
@@ -1926,123 +1927,125 @@ class iSurveyTools:
 
         iface.setActiveLayer(selected_layer)
         data = []
-        qc_code = 0
-        # for feature in selected_layer.getFeatures():
-        #     # feature name is Case insensitive
-        #     if len(feature.attributes()) > 3:
-        #         field_index = selected_layer.fields().indexFromName("Name")
-        #         if field_index == -1:
-        #             field_index = selected_layer.fields().indexFromName("event_description")
-        #             if field_index == -1:
-        #                 name = feature.attributes()[1]
-        #                 qc_code = 2
-        #             else:
-        #                 name = feature["event_description"]
-        #         else:
-        #             name = feature["name"]
-        #         field_index = selected_layer.fields().indexFromName("easting")
-        #         if field_index == -1:
-        #             field_index = selected_layer.fields().indexFromName("Easting")
-        #             if field_index == -1:
-        #                 east = feature.attributes()[2]
-        #                 qc_code = 3
-        #             else:
-        #                 east = feature["Easting"]
-        #         else:
-        #             east = feature["easting"]
-        #         field_index = selected_layer.fields().indexFromName("northing")
-        #         if field_index == -1:
-        #             field_index = selected_layer.fields().indexFromName("Northing")
-        #             if field_index == -1:
-        #                 north = feature.attributes()[3]
-        #                 qc_code = 4
-        #             else:
-        #                 north = feature["Northing"]
-        #         else:
-        #             north = feature["northing"]
-        #         data.append([name, east, north])
-        #     else:
-        #         qc_code = 1
-        #         print("layer does not have enough attributes")
-        #     # print(element)
-        ''' Go through all layer types and extract eastings, northings and name'''
-        for feat_num, feature in enumerate(selected_layer.getFeatures()):
-            # show some information about the feature
-            geom = feature.geometry()
-            # print(geom.get())
-            if self.export_dlg.cB_NoNameAttr.isChecked():
-                name = "Feature" + str(feat_num)
-            else:
-                attr_name = self.export_dlg.comboBoxNameAttr.currentText()
-                if attr_name == '':
-                    QMessageBox.critical(self.export_dlg,
-                                         'Select Name Waypoint', "Check the checkbox or choose a waypoint name")
-                    return
+
+        ''' Decide what kind of export should be used'''
+        if self.export_dlg.rB_wp.isChecked():
+            # for feature in selected_layer.getFeatures():
+            #     # feature name is Case insensitive
+            #     if len(feature.attributes()) > 3:
+            #         field_index = selected_layer.fields().indexFromName("Name")
+            #         if field_index == -1:
+            #             field_index = selected_layer.fields().indexFromName("event_description")
+            #             if field_index == -1:
+            #                 name = feature.attributes()[1]
+            #                 qc_code = 2
+            #             else:
+            #                 name = feature["event_description"]
+            #         else:
+            #             name = feature["name"]
+            #         field_index = selected_layer.fields().indexFromName("easting")
+            #         if field_index == -1:
+            #             field_index = selected_layer.fields().indexFromName("Easting")
+            #             if field_index == -1:
+            #                 east = feature.attributes()[2]
+            #                 qc_code = 3
+            #             else:
+            #                 east = feature["Easting"]
+            #         else:
+            #             east = feature["easting"]
+            #         field_index = selected_layer.fields().indexFromName("northing")
+            #         if field_index == -1:
+            #             field_index = selected_layer.fields().indexFromName("Northing")
+            #             if field_index == -1:
+            #                 north = feature.attributes()[3]
+            #                 qc_code = 4
+            #             else:
+            #                 north = feature["Northing"]
+            #         else:
+            #             north = feature["northing"]
+            #         data.append([name, east, north])
+            #     else:
+            #         qc_code = 1
+            #         print("layer does not have enough attributes")
+            #     # print(element)
+            ''' Go through all layer types and extract eastings, northings and name'''
+            for feat_num, feature in enumerate(selected_layer.getFeatures()):
+                # show some information about the feature
+                geom = feature.geometry()
+                # print(geom.get())
+                if self.export_dlg.cB_NoNameAttr.isChecked():
+                    name = "Feature" + str(feat_num)
                 else:
-                    name = feature[str(attr_name)]
-            geomSingleType = QgsWkbTypes.isSingleType(geom.wkbType())
-            if geom.type() == QgsWkbTypes.PointGeometry:
-                # the geometry type can be of single or multi type
-                if geomSingleType:
-                    x = geom.asPoint()
-                    # print("Point: ", x.x())
-                    east = x.x()
-                    north = x.y()
-                else:
-                    x = geom.asMultiPoint()
-                    # print("MultiPoint: ", x)
-                    for pnt in x:
-                        east = pnt.x()
-                        north = pnt.y()
-                        # name = str(feat_num) + "_" + str(name)
-                data.append([str(name), east, north])
-            elif geom.type() == QgsWkbTypes.LineGeometry:
-                if geomSingleType:
-                    x = geom.asPolyline()
-                    print("Line: ", x, "length: ", geom.length())
-                    east = x.x()
-                    north = x.y()
-                    data.append([str(name), east, north])
-                else:
-                    x = geom.asMultiPolyline()
-                    # print("MultiLine: ", x, "length: ", geom.length())
-                    ml_num = 0
-                    for line in x:
-                        for pnt in line:
-                            ml_num += 1
+                    attr_name = self.export_dlg.comboBoxNameAttr.currentText()
+                    if attr_name == '':
+                        QMessageBox.critical(self.export_dlg,
+                                             'Select Name Waypoint', "Check the checkbox or choose a waypoint name")
+                        return
+                    else:
+                        name = feature[str(attr_name)]
+                geomSingleType = QgsWkbTypes.isSingleType(geom.wkbType())
+                if geom.type() == QgsWkbTypes.PointGeometry:
+                    # the geometry type can be of single or multi type
+                    if geomSingleType:
+                        x = geom.asPoint()
+                        # print("Point: ", x.x())
+                        east = x.x()
+                        north = x.y()
+                    else:
+                        x = geom.asMultiPoint()
+                        # print("MultiPoint: ", x)
+                        for pnt in x:
                             east = pnt.x()
                             north = pnt.y()
-                            # name = "ML" + str(feat_num) + "_Pt" + str(ml_num) + "_" + str(name)
+                            # name = str(feat_num) + "_" + str(name)
+                    data.append([str(name), east, north])
+                elif geom.type() == QgsWkbTypes.LineGeometry:
+                    if geomSingleType:
+                        x = geom.asPolyline()
+                        for pnt in x:
+                            # print("Line: ", x, "length: ", geom.length())
+                            east = pnt.x()
+                            north = pnt.y()
                             data.append([str(name), east, north])
-            elif geom.type() == QgsWkbTypes.PolygonGeometry:
-                if geomSingleType:
-                    x = geom.asPolygon()
-                    print("Polygon: ", x, "Area: ", geom.area())
-                    ml_num = 0
-                    for line in x:
+                    else:
+                        x = geom.asMultiPolyline()
+                        # print("MultiLine: ", x, "length: ", geom.length())
+                        ml_num = 0
+                        for line in x:
                             for pnt in line:
                                 ml_num += 1
                                 east = pnt.x()
                                 north = pnt.y()
-                                # name = "Polygon" + str(feat_num)
+                                # name = "ML" + str(feat_num) + "_Pt" + str(ml_num) + "_" + str(name)
                                 data.append([str(name), east, north])
+                elif geom.type() == QgsWkbTypes.PolygonGeometry:
+                    if geomSingleType:
+                        x = geom.asPolygon()
+                        print("Polygon: ", x, "Area: ", geom.area())
+                        ml_num = 0
+                        for line in x:
+                                for pnt in line:
+                                    ml_num += 1
+                                    east = pnt.x()
+                                    north = pnt.y()
+                                    # name = "Polygon" + str(feat_num)
+                                    data.append([str(name), east, north])
+                    else:
+                        x = geom.asMultiPolygon()
+                        # print("MultiPolygon: ", x, "Area: ", geom.area())
+                        ml_num = 0
+                        for line in x:
+                            for what in line:
+                                for pnt in what:
+                                    ml_num += 1
+                                    east = pnt.x()
+                                    north = pnt.y()
+                                    # name = "Polygon" + str(feat_num)
+                                    data.append([str(name), east, north])
                 else:
-                    x = geom.asMultiPolygon()
-                    # print("MultiPolygon: ", x, "Area: ", geom.area())
-                    ml_num = 0
-                    for line in x:
-                        for what in line:
-                            for pnt in what:
-                                ml_num += 1
-                                east = pnt.x()
-                                north = pnt.y()
-                                # name = "Polygon" + str(feat_num)
-                                data.append([str(name), east, north])
-            else:
-                print("Unknown or invalid geometry")
+                    print("Unknown or invalid geometry")
 
-        ''' Decide what kind of export should be used'''
-        if self.export_dlg.rB_wp.isChecked():
+
             depth = 0
             fg_color = 0
             bg_color = 0
@@ -2063,17 +2066,102 @@ class iSurveyTools:
             df = pd.DataFrame(new_list, columns=column_names)
             # print(df.head(5))
             export_path + ".wp2"
-            df.to_csv(export_path, index=False, header=False, quoting=csv.QUOTE_NONNUMERIC)
+            df.to_csv(export_path, index=False, header=False, float_format='%.3f', quoting=csv.QUOTE_NONNUMERIC)
         elif self.export_dlg.rB_dis.isChecked():
             print("Displayline is selected")
             # TODO: Implement display line function
 
         elif self.export_dlg.rB_rln.isChecked():
             print("Runline is selected")
-            # TODO : Improve RLN export
-            df = pd.DataFrame(data, columns=['name', 'easting', 'northing'])
+            ''' Go through all layer types and extract eastings, northings and name'''
+            for feat_num, feature in enumerate(selected_layer.getFeatures()):
+                geom = feature.geometry()
+                if feat_num == 0:
+                    data.append(["# " + str(datetime.now().strftime("%d.%m.%Y %H:%M:%S"))])
+                    data.append(["Runline Name"])
+                    print("Appended data in start of file")
+                # Not Valid for Runline export
+                # if self.export_dlg.cB_NoNameAttr.isChecked():
+                #     name = "Feature" + str(feat_num)
+                # else:
+                #     attr_name = self.export_dlg.comboBoxNameAttr.currentText()
+                #     if attr_name == '':
+                #         QMessageBox.critical(self.export_dlg,
+                #                              'Select Name Waypoint', "Check the checkbox or choose a waypoint name")
+                #         return
+                #     else:
+                #         name = feature[str(attr_name)]
+                geomSingleType = QgsWkbTypes.isSingleType(geom.wkbType())
+                if geom.type() == QgsWkbTypes.PointGeometry:
+                    # the geometry type can be of single or multi type
+                    if geomSingleType:
+                        x = geom.asPoint()
+                        # print("Point: ", x.x())
+                        east = x.x()
+                        north = x.y()
+                    else:
+                        x = geom.asMultiPoint()
+                        # print("MultiPoint: ", x)
+                        for pnt in x:
+                            east = pnt.x()
+                            north = pnt.y()
+                            # name = str(feat_num) + "_" + str(name)
+                    data.append([east, north])
+                elif geom.type() == QgsWkbTypes.LineGeometry:
+                    if geomSingleType:
+                        x = geom.asPolyline()
+                        for pnt in x:
+                            # print("Line: ", x, "length: ", geom.length())
+                            east = pnt.x()
+                            north = pnt.y()
+                            data.append([east, north])
+                    else:
+                        x = geom.asMultiPolyline()
+                        # print("MultiLine: ", x, "length: ", geom.length())
+                        ml_num = 0
+                        for line in x:
+                            for pnt in line:
+                                ml_num += 1
+                                east = pnt.x()
+                                north = pnt.y()
+                                # name = "ML" + str(feat_num) + "_Pt" + str(ml_num) + "_" + str(name)
+                                data.append([east, north])
+                elif geom.type() == QgsWkbTypes.PolygonGeometry:
+                    if geomSingleType:
+                        x = geom.asPolygon()
+                        print("Polygon: ", x, "Area: ", geom.area())
+                        ml_num = 0
+                        for line in x:
+                            for pnt in line:
+                                ml_num += 1
+                                east = pnt.x()
+                                north = pnt.y()
+                                # name = "Polygon" + str(feat_num)
+                                data.append([east, north])
+                    else:
+                        x = geom.asMultiPolygon()
+                        # print("MultiPolygon: ", x, "Area: ", geom.area())
+                        ml_num = 0
+                        for line in x:
+                            for what in line:
+                                for pnt in what:
+                                    ml_num += 1
+                                    east = pnt.x()
+                                    north = pnt.y()
+                                    # name = "Polygon" + str(feat_num)
+                                    data.append([east, north])
+                else:
+                    print("Unknown or invalid geometry")
+
+            df = pd.DataFrame(data, columns=['easting', 'northing'])
             export_path = export_path + ".rln"
-            df[['easting', 'northing']].to_csv(export_path, index=False, header=False, quoting=csv.QUOTE_NONNUMERIC)
+            print(df.head())
+            df.to_csv(export_path, index=False, header=False, sep=";", na_rep=None, quoting=csv.QUOTE_NONNUMERIC)
+            # fout = open(export_path, "wt")
+            # for l in data:
+            #     # fout.write(l)
+            #     print(l)
+            # fout.close()
         elif self.export_dlg.rB_dig.isChecked():
             print("Digitized line is selected")
             # TODO: Implement digitized line export
