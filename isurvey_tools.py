@@ -33,7 +33,7 @@ import subprocess
 import sqlite3, sys
 import pandas as pd
 from osgeo import gdal
-from qgis.core import QgsWkbTypes, QgsRasterShader, QgsRasterLayer, QgsColorRampShader, QgsSingleBandPseudoColorRenderer, Qgis, QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
+from qgis.core import QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsExpressionContextUtils, QgsWkbTypes, QgsRasterShader, QgsRasterLayer, QgsColorRampShader, QgsSingleBandPseudoColorRenderer, Qgis, QgsVectorLayer, QgsVectorFileWriter, QgsProject, QgsPoint, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsPalLayerSettings, QgsTextFormat, QgsRuleBasedLabeling, QgsMessageLog, QgsSymbol, QgsRendererCategory, QgsSimpleFillSymbolLayer, QgsCategorizedSymbolRenderer, QgsVectorLayerSimpleLabeling
 from urllib.request import pathname2url
 from os import path
 from pathlib import Path
@@ -239,6 +239,8 @@ class iSurveyTools:
         if dbFile:
             self.dlg.line_db_path.setText(os.path.abspath(dbFile))
             self.populate_tid_and_sid_list()
+            QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(), 'project_masterfile_path',
+                                                         os.path.abspath(dbFile))
 
     def open_select_eiva(self):
         File,_ = QFileDialog.getOpenFileName(self.eiva_dlg, "Open EIVA files", "", "Runlines (*.rln *.rlx);;Track (*.etr);;Waypoints (*.wpt *.wp2);;XYZ Files (*.xyz);;All Files (*)")
@@ -258,7 +260,6 @@ class iSurveyTools:
             # basename = os.path.basename(os.path.abspath(File))
             # Set filename to Layername in GUI
             # self.export_dlg.layer_name.setValue(basename)
-
 
     def close_master_file_connect_signals(self):
         self.dlg.pB_Browse.clicked.disconnect(self.openSelectDB)
@@ -322,6 +323,8 @@ class iSurveyTools:
 
     def validateMasterfile(self):
         print("You pushed Validate Masterfile button")
+        self.dlg.cB_events.setStyleSheet("color: black")
+        self.dlg.cB_events.setChecked(False)
         conn = self.initDBConnection()
         if conn is None:
             QMessageBox.critical(self.dlg,
@@ -376,11 +379,21 @@ class iSurveyTools:
                         self.dlg.cB_events.setStyleSheet("color: green")
                         self.dlg.cB_events.setChecked(True)
                 except sqlite3.IntegrityError:
-                    print("Operation Types are already in this database")
+                    err_msg = "Operation Types are already in this database"
+                    QMessageBox.critical(self.dlg,
+                                         'Select Masterfile',
+                                         err_msg + "\nExiting...")
                 except sqlite3.DatabaseError:
-                    print("Probable some of the tables or columns has the wrong name:" + str(sys.exc_info()[0]))
+                    err_msg = "File exists, but its not a valid database or tables/columns are missing:" + str(sys.exc_info()[0])
+                    print(err_msg)
+                    QMessageBox.critical(self.dlg,
+                                         'Select Masterfile',
+                                         err_msg + "\nExiting...")
                 except:
-                    print("Unexpected error Trying to initializeDB:" + str(sys.exc_info()[0]))
+                    err_msg = "Unexpected error Trying to initializeDB:" + str(sys.exc_info()[0])
+                    QMessageBox.critical(self.dlg,
+                                         'Select Masterfile',
+                                         err_msg + "\nExiting...")
 
     def populate_tid_and_sid_list(self):
         conn = self.initDBConnection()
@@ -1266,6 +1279,12 @@ class iSurveyTools:
         self.dlg.pB_Refresh_tid_sid.clicked.connect(self.populate_tid_and_sid_list)
         self.dlg.cB_EPSG.clicked.connect(self.handle_QGIS_Project_EPSG)
 
+        # Get Masterfile path
+        mf_path = QgsExpressionContextUtils.projectScope(QgsProject.instance()).variable('project_masterfile_path')
+        if mf_path is not None:
+            self.dlg.line_db_path.setText(str(mf_path))
+            self.validateMasterfile()
+
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop
@@ -1872,11 +1891,11 @@ class iSurveyTools:
         self.export_dlg.pB_Refresh.clicked.connect(self.export_dlg_refresh)
         self.export_dlg.pB_Export.clicked.connect(self.export_dlg_export)
         self.export_dlg.pB_Cancel.clicked.connect(self.close_export_dlg)
-        self.export_dlg_refresh()
         self.export_dlg.comboBoxPointLayers.currentIndexChanged.connect(self.build_name_attr_comboBox)
         self.export_dlg.cB_NoNameAttr.clicked.connect(self.export_on_state_changed)
         # show the dialog
         self.export_dlg.show()
+        self.export_dlg_refresh()
         # Run the dialog event loop
         # result = self.export_dlg.exec_()
 
@@ -1974,7 +1993,7 @@ class iSurveyTools:
                 geom = feature.geometry()
                 # print(geom.get())
                 if self.export_dlg.cB_NoNameAttr.isChecked():
-                    name = "Feature" + str(feat_num)
+                    name = "WP" + str(feat_num).zfill(4)
                 else:
                     attr_name = self.export_dlg.comboBoxNameAttr.currentText()
                     if attr_name == '':
@@ -2042,9 +2061,12 @@ class iSurveyTools:
                                     north = pnt.y()
                                     # name = "Polygon" + str(feat_num)
                                     data.append([str(name), east, north])
+                elif geom.type() == QgsWkbTypes.Polygon:
+                    '''
+                    No geometry data, skipping export of these
+                    '''
                 else:
-                    print("Unknown or invalid geometry")
-
+                    print("Unknown or invalid geometry: " + str(geom.type()))
 
             depth = 0
             fg_color = 0
@@ -2065,12 +2087,90 @@ class iSurveyTools:
 
             df = pd.DataFrame(new_list, columns=column_names)
             # print(df.head(5))
-            export_path + ".wp2"
+            export_path = export_path + ".wp2"
             df.to_csv(export_path, index=False, header=False, float_format='%.3f', quoting=csv.QUOTE_NONNUMERIC)
         elif self.export_dlg.rB_dis.isChecked():
             print("Displayline is selected")
-            # TODO: Implement display line function
+            ''' Go through all layer types and extract eastings, northings and name'''
+            for feat_num, feature in enumerate(selected_layer.getFeatures()):
+                last_col = -1  # TODO Draws displayline export in one line, might split it and color it differently
+                geom = feature.geometry()
+                if feat_num == 0:
+                    # data.append(["# " + str(datetime.now().strftime("%d.%m.%Y %H:%M:%S"))])
+                    data.append([str(self.export_dlg.export_name.value())])
+                    data.append([4, 0, 3])  # Set Green color
+                    print("Appended data in start of file")
+                geomSingleType = QgsWkbTypes.isSingleType(geom.wkbType())
+                if geom.type() == QgsWkbTypes.PointGeometry:
+                    # the geometry type can be of single or multi type
+                    if geomSingleType:
+                        x = geom.asPoint()
+                        # print("Point: ", x.x())
+                        east = x.x()
+                        north = x.y()
+                    else:
+                        x = geom.asMultiPoint()
+                        # print("MultiPoint: ", x)
+                        for pnt in x:
+                            east = pnt.x()
+                            north = pnt.y()
+                            # name = str(feat_num) + "_" + str(name)
+                    data.append([east, north, last_col])
+                elif geom.type() == QgsWkbTypes.LineGeometry:
+                    if geomSingleType:
+                        x = geom.asPolyline()
+                        for pnt in x:
+                            # print("Line: ", x, "length: ", geom.length())
+                            east = pnt.x()
+                            north = pnt.y()
+                            data.append([east, north, last_col])
+                    else:
+                        x = geom.asMultiPolyline()
+                        # print("MultiLine: ", x, "length: ", geom.length())
+                        ml_num = 0
+                        for line in x:
+                            for pnt in line:
+                                ml_num += 1
+                                east = pnt.x()
+                                north = pnt.y()
+                                # name = "ML" + str(feat_num) + "_Pt" + str(ml_num) + "_" + str(name)
+                                data.append([east, north, last_col])
+                elif geom.type() == QgsWkbTypes.PolygonGeometry:
+                    if geomSingleType:
+                        x = geom.asPolygon()
+                        print("Polygon: ", x, "Area: ", geom.area())
+                        ml_num = 0
+                        for line in x:
+                            for pnt in line:
+                                ml_num += 1
+                                east = pnt.x()
+                                north = pnt.y()
+                                # name = "Polygon" + str(feat_num)
+                                data.append([east, north, last_col])
+                    else:
+                        x = geom.asMultiPolygon()
+                        # print("MultiPolygon: ", x, "Area: ", geom.area())
+                        ml_num = 0
+                        for line in x:
+                            for what in line:
+                                for pnt in what:
+                                    ml_num += 1
+                                    east = pnt.x()
+                                    north = pnt.y()
+                                    # name = "Polygon" + str(feat_num)
+                                    data.append([east, north, last_col])
+                elif geom.type() == QgsWkbTypes.Polygon:
+                    '''
+                    No geometry data, skipping export of these
+                    '''
+                else:
+                    print("Unknown or invalid geometry")
 
+            df = pd.DataFrame(data, columns=['easting', 'northing', 'marker'])
+            df.iloc[2, 2] = -2  # First point, start drawing
+            export_path = export_path + ".dis"
+            # print(df.head())
+            df.to_csv(export_path, index=False, header=False, sep=",", na_rep=None, quoting=csv.QUOTE_NONNUMERIC)
         elif self.export_dlg.rB_rln.isChecked():
             print("Runline is selected")
             ''' Go through all layer types and extract eastings, northings and name'''
@@ -2078,7 +2178,7 @@ class iSurveyTools:
                 geom = feature.geometry()
                 if feat_num == 0:
                     data.append(["# " + str(datetime.now().strftime("%d.%m.%Y %H:%M:%S"))])
-                    data.append(["Runline Name"])
+                    data.append([str(self.export_dlg.export_name.value())])
                     print("Appended data in start of file")
                 # Not Valid for Runline export
                 # if self.export_dlg.cB_NoNameAttr.isChecked():
@@ -2150,13 +2250,17 @@ class iSurveyTools:
                                     north = pnt.y()
                                     # name = "Polygon" + str(feat_num)
                                     data.append([east, north])
+                elif geom.type() == QgsWkbTypes.Polygon:
+                    '''
+                    No geometry data, skipping export of these
+                    '''
                 else:
                     print("Unknown or invalid geometry")
 
             df = pd.DataFrame(data, columns=['easting', 'northing'])
             export_path = export_path + ".rln"
-            print(df.head())
-            df.to_csv(export_path, index=False, header=False, sep=";", na_rep=None, quoting=csv.QUOTE_NONNUMERIC)
+            # print(df.head())
+            df.to_csv(export_path, index=False, header=False, sep=" ", na_rep=None, float_format='%.3f', quoting=None)
             # fout = open(export_path, "wt")
             # for l in data:
             #     # fout.write(l)
@@ -2164,29 +2268,293 @@ class iSurveyTools:
             # fout.close()
         elif self.export_dlg.rB_dig.isChecked():
             print("Digitized line is selected")
-            # TODO: Implement digitized line export
+
+            ''' Go through all layer types and extract eastings, northings and name'''
+            for feat_num, feature in enumerate(selected_layer.getFeatures()):
+                if self.export_dlg.cB_NoNameAttr.isChecked():
+                    depth = 0.00000  # Depth set to default 0
+                else:
+                    attr_name = self.export_dlg.comboBoxNameAttr.currentText()
+                    if attr_name == '':
+                        err_msg = "Untick the checkbox or choose a table attribute for digitized line depth"
+                        QMessageBox.critical(self.export_dlg,
+                                             'Select Depth Attribute',
+                                             err_msg)
+                        return
+                    else:
+                        depth = feature[str(attr_name)]
+                geom = feature.geometry()
+                geomSingleType = QgsWkbTypes.isSingleType(geom.wkbType())
+                if geom.type() == QgsWkbTypes.PointGeometry:
+                    # the geometry type can be of single or multi type
+                    if geomSingleType:
+                        x = geom.asPoint()
+                        # print("Point: ", x.x())
+                        east = x.x()
+                        north = x.y()
+                    else:
+                        x = geom.asMultiPoint()
+                        # print("MultiPoint: ", x)
+                        for pnt in x:
+                            east = pnt.x()
+                            north = pnt.y()
+                            # name = str(feat_num) + "_" + str(name)
+                    data.append([east, north, depth])
+                elif geom.type() == QgsWkbTypes.LineGeometry:
+                    if geomSingleType:
+                        x = geom.asPolyline()
+                        for pnt in x:
+                            # print("Line: ", x, "length: ", geom.length())
+                            east = pnt.x()
+                            north = pnt.y()
+                            data.append([east, north, depth])
+                    else:
+                        x = geom.asMultiPolyline()
+                        # print("MultiLine: ", x, "length: ", geom.length())
+                        ml_num = 0
+                        for line in x:
+                            for pnt in line:
+                                ml_num += 1
+                                east = pnt.x()
+                                north = pnt.y()
+                                # name = "ML" + str(feat_num) + "_Pt" + str(ml_num) + "_" + str(name)
+                                data.append([east, north, depth])
+                elif geom.type() == QgsWkbTypes.PolygonGeometry:
+                    if geomSingleType:
+                        x = geom.asPolygon()
+                        print("Polygon: ", x, "Area: ", geom.area())
+                        ml_num = 0
+                        for line in x:
+                            for pnt in line:
+                                ml_num += 1
+                                east = pnt.x()
+                                north = pnt.y()
+                                # name = "Polygon" + str(feat_num)
+                                data.append([east, north, depth])
+                    else:
+                        x = geom.asMultiPolygon()
+                        # print("MultiPolygon: ", x, "Area: ", geom.area())
+                        ml_num = 0
+                        for line in x:
+                            for what in line:
+                                for pnt in what:
+                                    ml_num += 1
+                                    east = pnt.x()
+                                    north = pnt.y()
+                                    # name = "Polygon" + str(feat_num)
+                                    data.append([east, north, depth])
+                elif geom.type() == QgsWkbTypes.Polygon:
+                    '''
+                    No geometry data, skipping export of these
+                    '''
+                else:
+                    print("Unknown or invalid geometry")
+
+            df = pd.DataFrame(data, columns=['easting', 'northing', 'depth'])
+            df = df.round(5)
+            export_path = export_path + ".dig"
+            # print(df.head())
+            df.to_csv(export_path, index=False, header=['#unit=m', 'm', 'm'], sep=" ", float_format='%.5f', quoting=None)
         elif self.export_dlg.rB_kongs.isChecked():
             print("Kongsberg export is selected")
-            # TODO: Implement Kongsberg export
+            epsg_code = self.iface.mapCanvas().mapSettings().destinationCrs().authid()
+            sourceCrs = QgsCoordinateReferenceSystem(epsg_code)
+            destCrs = QgsCoordinateReferenceSystem(4326)
+            tr = QgsCoordinateTransform(sourceCrs, destCrs, QgsProject.instance())
+
+            ''' Go through all layer types and extract eastings, northings and name'''
+            for feat_num, feature in enumerate(selected_layer.getFeatures()):
+                # show some information about the feature
+                geom = feature.geometry()
+                geomSingleType = QgsWkbTypes.isSingleType(geom.wkbType())
+                if geom.type() == QgsWkbTypes.PointGeometry:
+                    # the geometry type can be of single or multi type
+                    if geomSingleType:
+                        geom.transform(tr)
+                        x = geom.asPoint()
+                        deg_lat, mnt_lat, sec_lat = decdeg2dms(x.x())
+                        mnt_lat = mnt_lat + sec_lat / 60
+                        if deg_lat >= 0:
+                            hemis_NS = 'N'
+                        elif deg_lat < 0:
+                            hemis_NS = 'S'
+                        else:
+                            hemis_NS = '-'
+
+                        deg_long, mnt_long, sec_long = decdeg2dms(x.y())
+                        mnt_long = mnt_long + sec_long / 60
+                        if deg_long >= 0:
+                            hemis_EW = 'E'
+                        elif deg_lat < 0:
+                            hemis_EW = 'W'
+                        else:
+                            hemis_EW = '-'
+
+                    else:
+                        geom.transform(tr)
+                        x = geom.asMultiPoint()
+                        # print("MultiPoint: ", x)
+                        for pnt in x:
+                            deg_lat, mnt_lat, sec_lat = decdeg2dms(pnt.x())
+                            mnt_lat = mnt_lat + sec_lat / 60
+                            if deg_lat >= 0:
+                                hemis_NS = 'N'
+                            elif deg_lat < 0:
+                                hemis_NS = 'S'
+                            else:
+                                hemis_NS = '-'
+                            deg_long, mnt_long, sec_long = decdeg2dms(pnt.y())
+                            mnt_long = mnt_long + sec_long / 60
+                            if deg_long >= 0:
+                                hemis_EW = 'E'
+                            elif deg_lat < 0:
+                                hemis_EW = 'W'
+                            else:
+                                hemis_EW = '-'
+                    data.append([hemis_NS, int(deg_lat), round(mnt_lat, 6), hemis_EW, int(deg_long), round(mnt_long, 6)])
+                elif geom.type() == QgsWkbTypes.LineGeometry:
+                    if geomSingleType:
+                        geom.transform(tr)
+                        x = geom.asPolyline()
+                        for pnt in x:
+                            deg_lat, mnt_lat, sec_lat = decdeg2dms(pnt.x())
+                            mnt_lat = mnt_lat + sec_lat / 60
+                            if deg_lat >= 0:
+                                hemis_NS = 'N'
+                            elif deg_lat < 0:
+                                hemis_NS = 'S'
+                            else:
+                                hemis_NS = '-'
+                            deg_long, mnt_long, sec_long = decdeg2dms(pnt.y())
+                            mnt_long = mnt_long + sec_long / 60
+                            if deg_long >= 0:
+                                hemis_EW = 'E'
+                            elif deg_lat < 0:
+                                hemis_EW = 'W'
+                            else:
+                                hemis_EW = '-'
+                            data.append([hemis_NS, int(deg_lat), round(mnt_lat, 6), hemis_EW, int(deg_long), round(mnt_long, 6)])
+                    else:
+                        geom.transform(tr)
+                        x = geom.asMultiPolyline()
+                        # print("MultiLine: ", x, "length: ", geom.length())
+                        ml_num = 0
+                        for line in x:
+                            for pnt in line:
+                                ml_num += 1
+                                deg_lat, mnt_lat, sec_lat = decdeg2dms(pnt.x())
+                                mnt_lat = mnt_lat + sec_lat / 60
+                                if deg_lat >= 0:
+                                    hemis_NS = 'N'
+                                elif deg_lat < 0:
+                                    hemis_NS = 'S'
+                                else:
+                                    hemis_NS = '-'
+                                deg_long, mnt_long, sec_long = decdeg2dms(pnt.y())
+                                mnt_long = mnt_long + sec_long / 60
+                                if deg_long >= 0:
+                                    hemis_EW = 'E'
+                                elif deg_lat < 0:
+                                    hemis_EW = 'W'
+                                else:
+                                    hemis_EW = '-'
+                                data.append([hemis_NS, int(deg_lat), round(mnt_lat, 6), hemis_EW, int(deg_long), round(mnt_long, 6)])
+                elif geom.type() == QgsWkbTypes.PolygonGeometry:
+                    if geomSingleType:
+                        geom.transform(tr)
+                        x = geom.asPolygon()
+                        print("Polygon: ", x, "Area: ", geom.area())
+                        ml_num = 0
+                        for line in x:
+                            for pnt in line:
+                                ml_num += 1
+                                deg_lat, mnt_lat, sec_lat = decdeg2dms(pnt.x())
+                                mnt_lat = mnt_lat + sec_lat / 60
+                                if deg_lat >= 0:
+                                    hemis_NS = 'N'
+                                elif deg_lat < 0:
+                                    hemis_NS = 'S'
+                                else:
+                                    hemis_NS = '-'
+                                deg_long, mnt_long, sec_long = decdeg2dms(pnt.y())
+                                mnt_long = mnt_long + sec_long / 60
+                                if deg_long >= 0:
+                                    hemis_EW = 'E'
+                                elif deg_lat < 0:
+                                    hemis_EW = 'W'
+                                else:
+                                    hemis_EW = '-'
+                                data.append([hemis_NS, int(deg_lat), round(mnt_lat, 6), hemis_EW, int(deg_long), round(mnt_long, 6)])
+                    else:
+                        geom.transform(tr)
+                        x = geom.asMultiPolygon()
+                        # print("MultiPolygon: ", x, "Area: ", geom.area())
+                        ml_num = 0
+                        for line in x:
+                            for what in line:
+                                for pnt in what:
+                                    ml_num += 1
+                                    deg_lat, mnt_lat, sec_lat = decdeg2dms(pnt.x())
+                                    mnt_lat = mnt_lat + sec_lat / 60
+                                    if deg_lat >= 0:
+                                        hemis_NS = 'N'
+                                    elif deg_lat < 0:
+                                        hemis_NS = 'S'
+                                    else:
+                                        hemis_NS = '-'
+                                    deg_long, mnt_long, sec_long = decdeg2dms(pnt.y())
+                                    mnt_long = mnt_long + sec_long / 60
+                                    if deg_long >= 0:
+                                        hemis_EW = 'E'
+                                    elif deg_lat < 0:
+                                        hemis_EW = 'W'
+                                    else:
+                                        hemis_EW = '-'
+                                    data.append([hemis_NS, int(deg_lat), round(mnt_lat, 6), hemis_EW, int(deg_long), round(mnt_long, 6)])
+                elif geom.type() == QgsWkbTypes.Polygon:
+                    '''
+                    No geometry data, skipping export of these
+                    '''
+                else:
+                    print("Unknown or invalid geometry: " + str(geom.type()))
+            extra_param = ['WP', 0, 0.000, 0.2500, 200.00]
+
+            column_names = ['WPId', 'WPHemisNS', 'WPLatDeg', 'WPLatMin', 'WPHemisEW', 'WPLonDeg',
+                            'WPLonMin', 'WPFormat', 'WPLegType', 'WPHead', 'WPSpeed', 'WPTurnRad']
+            column_names_export = ['WPFormat', 'WPId', 'WPHemisNS', 'WPLatDeg', 'WPLatMin', 'WPHemisEW', 'WPLonDeg',
+                            'WPLonMin', 'WPLegType', 'WPHead', 'WPSpeed', 'WPTurnRad']
+
+            new_list = []
+            for i, lin in enumerate(data):
+                lin = [i+1] + lin + extra_param
+                new_list.append(lin)
+
+            df = pd.DataFrame(new_list, columns=column_names)
+            now = datetime.utcnow()
+            day = now.strftime("%A")
+            month = now.strftime("%B")
+            date = now.strftime("%d")
+            year = now.strftime("%Y")
+            time = now.strftime("%H:%M:%S")
+            kongsberg_header = "CreateDate (UTC)," + str(day) + ", " + str(month) + " " + str(date) + ", " + str(year) + " " + str(time) + \
+                               "\nVersion,4" \
+                               "\nTrackName," + str(self.export_dlg.comboBoxPointLayers.currentText()) + \
+                               "\nNoOfWp," + str(len(new_list)) + \
+                               "\nDatum,WGS84"
+            export_path = export_path + ".txt"
+            df.to_csv(export_path, index=False, sep=",", na_rep=None, columns=column_names_export)
+            # here we are trying to read the data from the file
+            with open(export_path, "r+") as f:
+                a = f.read()
+                # Now writing into the file with the prepend line + old file data
+                with open(export_path, "w+") as f:
+                    f.write(kongsberg_header + "\n" + a + "END")
         else:
             print("Radiobutton is not selected, something is wrong...")
 
-        # if qc_code > 0:
-        #     QMessageBox.critical(self.export_dlg,
-        #                          'WP2 Export',
-        #                          "It was exported a WP2 file, but it seems like something went wrong. Please check the exported file.\nExport functions works for MF Event layer, imported WP2/WPT files.\n\nQC_code " + str(qc_code))
-        # else:
         msg = "Successfully exported WP2 file to: " + str(export_path)
         print(msg)
         QgsMessageLog.logMessage(msg, MESSAGE_CATEGORY, Qgis.Success)
-        # button_reply = QMessageBox.question(self.export_dlg,'Successfully exported WP2 file',
-        #                                     "Do you want to open the exported file in default texteditor?",
-        #                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        # if button_reply == QMessageBox.Yes:
-        #     # webbrowser.open(export_path)
-        #     os.popen('notepad ' + export_path)
-        # else:
-        #     ''' Do not open file'''
         msgbox = QMessageBox()
         msgbox.setWindowTitle("Successfully exported WP2 file")
         msgbox.setText('Do you want to open the exported file in Notepad for QC?')
@@ -2228,3 +2596,9 @@ class iSurveyTools:
             for field in selected_layer.fields():
                 # print(field.name(), field.typeName())
                 self.export_dlg.comboBoxNameAttr.addItem(str(field.name()))
+
+
+def decdeg2dms(dd):
+    mnt, sec = divmod(dd*3600, 60)
+    deg, mnt = divmod(mnt, 60)
+    return deg, mnt, sec

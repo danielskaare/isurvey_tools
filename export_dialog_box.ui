@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>428</width>
-    <height>435</height>
+    <width>541</width>
+    <height>426</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -71,7 +71,7 @@
    <item row="5" column="0">
     <widget class="QLabel" name="label_4">
      <property name="text">
-      <string>Name Attribute (For Waypoint export only)</string>
+      <string>Attribute (WP2: Name, DIS: NA, RLN: NA, DIG: Depth, KB: NA)</string>
      </property>
     </widget>
    </item>
@@ -90,7 +90,7 @@
      <item>
       <widget class="QCheckBox" name="cB_NoNameAttr">
        <property name="text">
-        <string>AutoName Waypoints</string>
+        <string>Disable Attribute</string>
        </property>
       </widget>
      </item>
@@ -172,7 +172,7 @@
      <item>
       <widget class="QRadioButton" name="rB_wp">
        <property name="text">
-        <string>Waypoint</string>
+        <string>Waypoint(wp2)</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -181,29 +181,44 @@
      </item>
      <item>
       <widget class="QRadioButton" name="rB_dis">
+       <property name="font">
+        <font>
+         <strikeout>false</strikeout>
+        </font>
+       </property>
        <property name="text">
-        <string>Displayline</string>
+        <string>Displayline(dis)</string>
        </property>
       </widget>
      </item>
      <item>
       <widget class="QRadioButton" name="rB_rln">
        <property name="text">
-        <string>Runline</string>
+        <string>Runline(rln)</string>
        </property>
       </widget>
      </item>
      <item>
       <widget class="QRadioButton" name="rB_dig">
+       <property name="font">
+        <font>
+         <strikeout>false</strikeout>
+        </font>
+       </property>
        <property name="text">
-        <string>Digitized Line</string>
+        <string>Digitized Line(dig)</string>
        </property>
       </widget>
      </item>
      <item>
       <widget class="QRadioButton" name="rB_kongs">
+       <property name="font">
+        <font>
+         <strikeout>false</strikeout>
+        </font>
+       </property>
        <property name="text">
-        <string>Kongsberg WPT</string>
+        <string>Kongsberg WPT(txt)</string>
        </property>
       </widget>
      </item>
