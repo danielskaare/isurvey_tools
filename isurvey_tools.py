@@ -239,8 +239,11 @@ class iSurveyTools:
         if dbFile:
             self.dlg.line_db_path.setText(os.path.abspath(dbFile))
             self.populate_tid_and_sid_list()
-            QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(), 'project_masterfile_path',
+            QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(), 'project_masterfile_fp',
                                                          os.path.abspath(dbFile))
+            QgsExpressionContextUtils.setProjectVariable(QgsProject.instance(), 'project_masterfile_path',
+                                                         os.path.abspath(os.path.dirname(dbFile)))
+            # self.validateMasterfile()
 
     def open_select_eiva(self):
         File,_ = QFileDialog.getOpenFileName(self.eiva_dlg, "Open EIVA files", "", "Runlines (*.rln *.rlx);;Track (*.etr);;Waypoints (*.wpt *.wp2);;XYZ Files (*.xyz);;All Files (*)")
@@ -1280,7 +1283,7 @@ class iSurveyTools:
         self.dlg.cB_EPSG.clicked.connect(self.handle_QGIS_Project_EPSG)
 
         # Get Masterfile path
-        mf_path = QgsExpressionContextUtils.projectScope(QgsProject.instance()).variable('project_masterfile_path')
+        mf_path = QgsExpressionContextUtils.projectScope(QgsProject.instance()).variable('project_masterfile_fp')
         if mf_path is not None:
             self.dlg.line_db_path.setText(str(mf_path))
             self.validateMasterfile()
